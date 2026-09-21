@@ -1,4 +1,5 @@
 REVIVED BY JTECH2015
+For help dm me on Discord at jtech2015_48981
 
 
 # APKUpdater [![](https://github.com/rumboalla/apkupdater/workflows/Android%20Build/badge.svg)](https://github.com/rumboalla/apkupdater/actions?query=workflow%3A%22Android+Build%22)
