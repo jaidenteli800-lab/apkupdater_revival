@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -50,7 +49,7 @@ fun TvCommonItem(
     versionCode: Long,
     oldVersionCode: Long?,
     uri: Uri? = null,
-    single: Boolean = false
+    single: Boolean = false,
 ) = Row {
     if (uri == null) {
         LoadingImageApp(packageName, Modifier.height(100.dp).align(Alignment.CenterVertically).padding(top = 8.dp))
@@ -60,7 +59,7 @@ fun TvCommonItem(
     Column(Modifier.align(Alignment.CenterVertically).padding(start = 8.dp, end = 8.dp, top = 8.dp)) {
         LargeTitle(name.ifEmpty { LocalContext.current.getAppName(packageName) }.ifEmpty { packageName })
         MediumText(packageName)
-        if (oldVersion != null && !single) {
+        if ((oldVersion != null) && !single) {
             ScrollableText {
                 MediumText("$oldVersion -> $version")
             }
@@ -188,7 +187,16 @@ fun TvUpdateItem(
 @Composable
 fun TvSearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}) = Card {
     Column {
-        TvCommonItem(app.packageName, app.name, app.version, app.oldVersion, app.versionCode, app.oldVersionCode, app.iconUri, true)
+        TvCommonItem(
+            packageName = app.packageName,
+            name = app.name,
+            version = app.version,
+            oldVersion = app.oldVersion,
+            versionCode = app.versionCode,
+            oldVersionCode = app.oldVersionCode,
+            uri = app.iconUri,
+            single = true
+        )
         WhatsNew(app.whatsNew, app.source)
         Box(Modifier.fillMaxWidth()) {
             TvSourceIcon(app)

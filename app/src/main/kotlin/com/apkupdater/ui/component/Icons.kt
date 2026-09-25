@@ -30,7 +30,6 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,8 +48,6 @@ import com.apkupdater.data.ui.AppUpdate
 import com.apkupdater.data.ui.Link
 import com.apkupdater.data.ui.Source
 import com.apkupdater.util.clickableNoRipple
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)

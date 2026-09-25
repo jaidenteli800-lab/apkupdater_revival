@@ -73,17 +73,12 @@ class SettingsViewModel(
 	fun getAndroidTvUi() = prefs.androidTvUi.get()
 	fun setAndroidTvUi(b: Boolean) = prefs.androidTvUi.put(b)
 	fun getEnableAlarm() = prefs.enableAlarm.get()
-	fun getRootInstall() = prefs.rootInstall.get()
 	fun getAlarmHour() = prefs.alarmHour.get()
 	fun getAlarmFrequency() = prefs.alarmFrequency.get()
 	fun getTheme() = prefs.theme.get()
-	fun getBetaTesting() = prefs.betaTesting.get()
 
 	private val _rootStatus = MutableStateFlow<Boolean>(prefs.rootInstall.get())
 	val rootStatus = _rootStatus
-
-    private val _betaStatus = MutableStateFlow<Boolean>(prefs.betaTesting.get())
-    val betaStatus = _betaStatus
 
 	fun setTheme(theme: Int) {
 		prefs.theme.put(theme)
@@ -110,11 +105,6 @@ class SettingsViewModel(
 			_actionState.value = ActionState.Idle
 		}
 	}
-
-    fun setBetaTesting(b: Boolean) {
-        prefs.betaTesting.put(b)
-        _betaStatus.value = b
-    }
 
 	fun setAlarmFrequency(frequency: Int) {
 		prefs.alarmFrequency.put(frequency)

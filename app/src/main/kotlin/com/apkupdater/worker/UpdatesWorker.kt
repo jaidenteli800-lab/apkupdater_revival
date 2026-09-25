@@ -19,7 +19,7 @@ import kotlin.random.Random
 
 class UpdatesWorker(
     context: Context,
-    workerParams: WorkerParameters
+    workerParams: WorkerParameters,
 ): CoroutineWorker(context, workerParams), KoinComponent {
 
     companion object: KoinComponent {
@@ -32,7 +32,7 @@ class UpdatesWorker(
             val request = PeriodicWorkRequestBuilder<UpdatesWorker>(getDays(), TimeUnit.DAYS)
                 .setInitialDelay(
                     millisUntilHour(prefs.alarmHour.get()) + randomDelay(),
-                    TimeUnit.MILLISECONDS
+                    TimeUnit.MILLISECONDS,
                 ).build()
             workManager.enqueueUniquePeriodicWork(TAG, ExistingPeriodicWorkPolicy.UPDATE, request)
         }
@@ -60,7 +60,7 @@ class UpdatesWorker(
             if (updates.isNotEmpty()) {
                 notification.showUpdateNotification(updates.size)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Handle cases where updates might be empty or flow fails
             return Result.retry()
         }

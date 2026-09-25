@@ -16,15 +16,15 @@ kotlin {
 
 android {
     namespace = "com.apkupdater"
-    compileSdk = 36
+    compileSdk = 37
 
     val buildNumber = System.getenv("BUILD_NUMBER").orEmpty()
     defaultConfig {
         applicationId = "com.apkupdater" + System.getenv("BUILD_TAG").orEmpty()
         minSdk = 23
         targetSdk = 36
-        versionCode = if (buildNumber.isEmpty()) 52 else buildNumber.toInt()
-        versionName = if (buildNumber.isEmpty()) "3.0.3" else "0.0.$buildNumber"
+        versionCode = if (buildNumber.isEmpty()) 60 else buildNumber.toInt()
+        versionName = if (buildNumber.isEmpty()) "3.1.0-Revived" else "0.0.$buildNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
@@ -54,6 +54,7 @@ android {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -84,31 +85,31 @@ dependencies {
 
     val composeBom = platform("androidx.compose:compose-bom:2026.02.01")
     implementation(composeBom)
-    implementation("androidx.activity:activity-compose:1.12.4")
+    implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
-    implementation("androidx.navigation:navigation-compose:2.9.7")
-    implementation("androidx.navigation:navigation-runtime-ktx:2.9.7")
-    implementation("androidx.tv:tv-foundation:1.0.0-alpha12")
-    implementation("androidx.work:work-runtime-ktx:2.11.1")
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.navigation:navigation-compose:2.10.1")
+    implementation("androidx.navigation:navigation-runtime-ktx:2.10.1")
+    implementation("androidx.tv:tv-foundation:1.0.0")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs-gson:0.4.3")
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs:0.4.3")
     implementation("com.github.topjohnwu.libsu:core:6.0.0")
-    implementation("com.auroraoss:gplayapi:3.5.8")
-    implementation("com.google.code.gson:gson:2.13.2")
-    implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
+    implementation("com.auroraoss:gplayapi:3.6.4")
+    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("io.coil-kt.coil3:coil-compose:3.4.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("io.github.g00fy2:versioncompare:1.5.0")
-    implementation("io.insert-koin:koin-android:4.1.1")
-    implementation("io.insert-koin:koin-androidx-compose:4.1.1")
-    implementation("org.jsoup:jsoup:1.22.1")
+    implementation("io.insert-koin:koin-android:4.2.2")
+    implementation("io.insert-koin:koin-androidx-compose:4.2.2")
+    implementation("org.jsoup:jsoup:1.23.2")
 
     testImplementation("junit:junit:4.13.2")
 

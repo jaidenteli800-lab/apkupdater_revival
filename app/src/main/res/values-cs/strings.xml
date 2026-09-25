@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,UnusedQuantity,MissingQuantity">
 
     <string name="tab_apps">Aplikace</string>
     <string name="tab_search">Vyhledávání</string>
@@ -23,7 +23,6 @@
     <string name="root_install_not_supported">Instalace této aplikace pomocí rootu není podporována.</string>
 
     // Settings
-    <string name="settings_experimental_installer">Použít exprerimentální nový instalátor</string>
     <string name="settings_portrait_columns">Sloupce v portrétním režimu</string>
     <string name="settings_landscape_columns">Sloupce v režimu na šířku</string>
     <string name="play_text_animations">Animace textu Play</string>
@@ -67,3 +66,5 @@
     </plurals>
 
 </resources>
+
+

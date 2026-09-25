@@ -28,7 +28,7 @@ class FdroidRepository(
     private val arch = Build.SUPPORTED_ABIS.toSet()
     private val api = Build.VERSION.SDK_INT
 
-    suspend fun updates(apps: List<AppInstalled>) = flow {
+    fun updates(apps: List<AppInstalled>) = flow {
         val response = service.getJar("${url}index-v1.jar")
         val data = jarToJson(response.byteStream())
         val appNames = apps.map { it.packageName }
@@ -45,7 +45,7 @@ class FdroidRepository(
         Log.e("FdroidRepository", "Error looking for updates.", it)
     }
 
-    suspend fun search(text: String) = flow {
+    fun search(text: String) = flow {
         val response = service.getJar("${url}index-v1.jar")
         val data = jarToJson(response.byteStream())
         val updates = data.apps

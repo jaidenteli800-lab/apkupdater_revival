@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -69,13 +69,17 @@ fun SmallText(text: String, modifier: Modifier = Modifier) = Text(
 fun MediumText(
     text: String,
     modifier: Modifier = Modifier,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    color: Color = Color.Unspecified,
+    fontWeight: FontWeight? = null
 ) = Text(
     text = text,
     style = MaterialTheme.typography.bodyMedium,
     maxLines = maxLines,
     modifier = modifier,
-    overflow = TextOverflow.Ellipsis
+    overflow = TextOverflow.Ellipsis,
+    color = color,
+    fontWeight = fontWeight
 )
 
 @Composable

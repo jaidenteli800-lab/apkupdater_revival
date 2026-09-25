@@ -25,12 +25,12 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(
 	private val prefs: Prefs,
-	private val installLog: InstallLog
+	private val installLog: InstallLog,
 ) : ViewModel() {
 
 	val screens = listOf(Screen.Apps, Screen.Search, Screen.Updates, Screen.Settings)
 
-	val isRefreshing = MutableStateFlow(false)
+	val isRefreshing = MutableStateFlow(value = false)
 
 	fun refresh(
 		appsViewModel: AppsViewModel,
@@ -51,7 +51,7 @@ class MainViewModel(
 		navController: NavController
 	) {
 		when {
-			intent.action == UpdatesNotification.UpdateAction -> processUpdateIntent(navController, updatesViewModel)
+			intent.action == UpdatesNotification.UPDATE_ACTION -> processUpdateIntent(navController, updatesViewModel)
 			intent.action?.contains(SessionInstaller.INSTALL_ACTION).orFalse() -> processInstallIntent(intent, launcher)
 			else -> {}
 		}

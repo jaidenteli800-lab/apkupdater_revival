@@ -13,13 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,16 +32,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -102,7 +97,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) = Column {
 @Composable
 fun ActionDialog(state: ActionState, onDismiss: () -> Unit) = Dialog(
     onDismissRequest = { if (state !is ActionState.Loading) onDismiss() },
-    properties = DialogProperties(dismissOnBackPress = state !is ActionState.Loading, dismissOnClickOutside = state !is ActionState.Loading)
+    properties = DialogProperties(
+        dismissOnBackPress = state !is ActionState.Loading,
+        dismissOnClickOutside = state !is ActionState.Loading,
+    )
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -111,7 +109,7 @@ fun ActionDialog(state: ActionState, onDismiss: () -> Unit) = Dialog(
     ) {
         Column(
             modifier = Modifier.padding(24.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = CenterHorizontally
         ) {
             Text(
                 text = when (state) {
@@ -128,10 +126,15 @@ fun ActionDialog(state: ActionState, onDismiss: () -> Unit) = Dialog(
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 } else {
                     // Static full bar for success/error
-                    Box(Modifier.fillMaxWidth().fillMaxSize().background(
-                        if (state is ActionState.Success) Color.Green.copy(alpha = 0.5f)
-                        else Color.Red.copy(alpha = 0.5f)
-                    ))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .fillMaxSize()
+                            .background(
+                                if (state is ActionState.Success) Color.Green.copy(alpha = 0.5f)
+                                else Color.Red.copy(alpha = 0.5f)
+                            )
+                    )
                 }
             }
 
@@ -152,6 +155,7 @@ fun About() = LazyColumn(
 			LoadingImageApp(BuildConfig.APPLICATION_ID)
 			LargeTitle(stringResource(R.string.app_name), Modifier.align(CenterHorizontally))
 			MediumText("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", Modifier.align(CenterHorizontally))
+			MediumText("Revived Version", Modifier.align(CenterHorizontally), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
 			MediumText("Copyright © 2016-${Calendar.getInstance().get(Calendar.YEAR)} rumboalla", Modifier.align(CenterHorizontally))
 		}
 	}

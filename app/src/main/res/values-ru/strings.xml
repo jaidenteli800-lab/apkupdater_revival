@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,UnusedQuantity,MissingQuantity">
 
     <string name="app_name" translatable="false">APKUpdater</string>
     <string name="tab_apps">Приложения</string>
@@ -24,7 +24,6 @@
     <string name="root_install_not_supported">Root-установка для этого приложения не поддерживается.</string>
 
     // Settings
-    <string name="settings_experimental_installer">Экспериментальный установщик</string>
     <string name="settings_portrait_columns">Колонок (портрет)</string>
     <string name="settings_landscape_columns">Колонок (альбом)</string>
     <string name="play_text_animations">Анимации текста</string>
@@ -77,3 +76,4 @@
     </plurals>
 
 </resources>
+

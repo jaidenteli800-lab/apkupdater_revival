@@ -30,7 +30,7 @@ import org.jsoup.Jsoup
 class ApkMirrorRepository(
     private val service: ApkMirrorService,
     private val prefs: Prefs,
-    packageManager: PackageManager
+    packageManager: PackageManager,
 ) {
 
     private val arch = when {
@@ -44,14 +44,14 @@ class ApkMirrorRepository(
     private val isAndroidTV = packageManager.isAndroidTv()
     private val api = Build.VERSION.SDK_INT
 
-    suspend fun updates(apps: List<AppInstalled>) = flow {
+    fun updates(apps: List<AppInstalled>) = flow {
         apps.chunked(100)
             .map { appExists(it.getPackageNames()) }
             .combine { all -> emit(parseUpdates(all.flatMap { it }, apps)) }
             .collect()
     }
 
-    suspend fun search(text: String) = flow {
+    fun search(text: String) = flow {
         val baseUrl = "https://www.apkmirror.com"
         val searchQuery = "/?post_type=app_release&searchtype=app&s="
         val doc = Jsoup.connect("$baseUrl$searchQuery$text").get()
@@ -120,7 +120,7 @@ class ApkMirrorRepository(
     private fun filterAndroidTv(apk: AppExistsResponseApk): Boolean {
         if (!isAndroidTV) {
             // Filter out standalone AndroidTV apps if we are not an AndroidTV device
-            if(apk.capabilities?.contains("leanback_standalone").orFalse()) {
+            if (apk.capabilities?.contains("leanback_standalone").orFalse()) {
                 return false
             }
         } else {
@@ -133,18 +133,12 @@ class ApkMirrorRepository(
 
     private fun filterWearOS(apk: AppExistsResponseApk): Boolean {
         // For the moment filter out all standalone Wear OS apps
-        if (apk.capabilities?.contains("wear_standalone").orFalse()) {
-            return false
-        }
-        return true
+        return !apk.capabilities?.contains("wear_standalone").orFalse()
     }
 
     private fun filterMinApi(apk: AppExistsResponseApk) = runCatching {
-        when {
-            apk.minapi.toInt() > api -> false
-            else -> true
-        }
-    }.getOrDefault(true)
+        apk.minapi.toInt() <= api
+    }.getOrDefault(defaultValue = true)
 
     private fun buildIgnoreList() = mutableListOf<String>().apply {
         if (prefs.ignoreAlpha.get()) add("alpha")

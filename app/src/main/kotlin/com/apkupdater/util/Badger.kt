@@ -15,8 +15,6 @@ class Badger {
 
     fun flow() = badges
 
-    fun changeSearchBadge(number: String) = changeBadge(Screen.Search.route, number)
-
     fun changeAppsBadge(number: String) = changeBadge(Screen.Apps.route, number)
 
     fun changeUpdatesBadge(number: String) = changeBadge(Screen.Updates.route, number)

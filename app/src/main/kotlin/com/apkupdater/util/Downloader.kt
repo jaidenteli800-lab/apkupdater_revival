@@ -4,26 +4,13 @@ import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import java.io.File
-import java.io.InputStream
 
 
 class Downloader(
     private val client: OkHttpClient,
     private val apkPureClient: OkHttpClient,
     private val auroraClient: OkHttpClient,
-    private val dir: File,
 ) {
-
-    fun download(url: String): File {
-        val file = File(dir, randomUUID())
-        client.newCall(downloadRequest(url, emptyMap())).execute().use {
-            if (it.isSuccessful) {
-                it.body.byteStream().copyTo(file.outputStream())
-            }
-        }
-        return file
-    }
 
     fun downloadResponse(url: String, headers: Map<String, String> = emptyMap()): Response? = runCatching {
         val c = when {
@@ -45,9 +32,6 @@ class Downloader(
         Log.e("Downloader", "Error downloading", it)
         null
     }
-
-    fun downloadStream(url: String, headers: Map<String, String> = emptyMap()): InputStream? = 
-        downloadResponse(url, headers)?.body?.byteStream()
 
     private fun downloadRequest(url: String, headers: Map<String, String>) = Request.Builder()
         .url(url)

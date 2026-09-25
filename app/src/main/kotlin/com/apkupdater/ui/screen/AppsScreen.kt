@@ -54,11 +54,11 @@ import org.koin.compose.viewmodel.koinViewModel
 fun AppsScreen(
 	viewModel: AppsViewModel = koinViewModel()
 ) {
-    val isProcessing by viewModel.isProcessing.collectAsStateWithLifecycle()
-    val processingMessage by viewModel.processingMessage.collectAsStateWithLifecycle()
+	val isProcessing by viewModel.isProcessing.collectAsStateWithLifecycle()
+	val processingMessage by viewModel.processingMessage.collectAsStateWithLifecycle()
 	if (isProcessing) {
-        ProcessingDialog(processingMessage)
-    }
+		ProcessingDialog(processingMessage)
+	}
 
 	viewModel.state().collectAsStateWithLifecycle().value.onLoading {
 		AppsScreenLoading(viewModel, it)

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,7 +43,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apkupdater.R
 import com.apkupdater.data.ui.AppUpdate
@@ -66,8 +64,7 @@ import org.koin.compose.koinInject
 
 @Composable
 fun UpdatesScreen(viewModel: UpdatesViewModel) {
-	val state = viewModel.state().collectAsStateWithLifecycle().value
-	when (state) {
+	when (val state = viewModel.state().collectAsStateWithLifecycle().value) {
 		is UpdatesUiState.Loading -> UpdatesScreenLoading(viewModel, state.stage, state.progress)
 		is UpdatesUiState.Error -> UpdatesScreenError(viewModel, state.message)
 		is UpdatesUiState.Success -> UpdatesScreenSuccess(viewModel, state.updates)
@@ -94,7 +91,7 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) = TopAppBar(
 		Box(Modifier.minimumInteractiveComponentSize().size(40.dp), Alignment.Center) {
 			Icon(Icons.Filled.ThumbUp, "Tab Icon")
 		}
-	}
+	},
 )
 
 @Composable
@@ -103,7 +100,7 @@ fun UpdatesScreenLoading(viewModel: UpdatesViewModel, stage: UpdateStage, progre
 	Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
 		Column(
 			horizontalAlignment = Alignment.CenterHorizontally,
-			modifier = Modifier.padding(16.dp)
+			modifier = Modifier.padding(16.dp),
 		) {
 			Text(
 				text = when (stage) {
@@ -147,7 +144,7 @@ fun UpdatesScreenSuccess(
 
 	UpdatesTopBar(viewModel)
 
-    val installingApps = updates.filter { it.isInstalling || it.error != null }
+    val installingApps = updates.filter { (it.isInstalling || it.error != null) }
     AnimatedVisibility(
         visible = installingApps.isNotEmpty(),
         enter = fadeIn() + expandVertically(),
@@ -254,7 +251,7 @@ fun TvGrid(
 		TvUpdateItem(
 			update,
 			{ viewModel.install(update, handler) },
-			{ viewModel.ignoreVersion(update.id)}
+			{ viewModel.ignoreVersion(update.id) }
 		)
 	}
 }

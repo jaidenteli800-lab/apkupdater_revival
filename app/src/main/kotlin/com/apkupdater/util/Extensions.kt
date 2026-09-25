@@ -12,10 +12,11 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
-import android.util.Log
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -23,54 +24,59 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.core.content.ContextCompat
-import com.apkupdater.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.yield
 import okhttp3.OkHttpClient
 import java.security.MessageDigest
 import java.text.DecimalFormatSymbols
 import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.math.log10
+import kotlin.math.pow
 
-// A clickable modifier that will disable the default ripple
-fun Modifier.clickableNoRipple(onClick: () -> Unit) = this.
-	clickable(MutableInteractionSource(), null, onClick = onClick)
+
+fun PackageInfo.name(context: Context): String = applicationInfo?.loadLabel(context.packageManager).toString()
+
+fun Modifier.clickableNoRipple(
+	onClick: () -> Unit,
+): Modifier = composed {
+	this.clickable(
+		indication = null,
+		interactionSource = remember { MutableInteractionSource() },
+	) {
+		onClick()
+	}
+}
+
+fun Boolean?.orFalse() = this ?: false
 
 // Launches a coroutine and executes it inside the mutex
 fun CoroutineScope.launchWithMutex(
 	mutex: Mutex,
 	context: CoroutineContext = EmptyCoroutineContext,
-	block: suspend CoroutineScope.() -> Unit
+	block: suspend CoroutineScope.() -> Unit,
 ) = launch(context) {
 	mutex.withLock {
 		block()
 	}
 }
 
-fun Boolean?.orFalse() = this ?: false
-
-fun PackageInfo.name(context: Context) = applicationInfo?.loadLabel(context.packageManager)?.toString() ?: ""
-
-fun Context.getAppIcon(packageName: String) = runCatching {
-	packageManager.getApplicationIcon(packageName)
-}.getOrElse {
-	Log.e("getAppIcon", "App not found. Uninstalled most likely.")
-	ContextCompat.getDrawable(this, R.drawable.ic_root)
-}
-
 fun Context.getAppName(packageName: String): String = runCatching {
 	packageManager.getPackageInfo(packageName, 0).name(this)
 }.getOrDefault("")
+
+fun Context.getAppIcon(packageName: String): android.graphics.drawable.Drawable? = try {
+	packageManager.getApplicationIcon(packageName)
+} catch (_: Exception) {
+	null
+}
 
 inline fun <reified T> List<Flow<T>>.combine(crossinline block: suspend (Array<T>) -> Unit) =
 	combine(this) { block(it) }
@@ -78,14 +84,14 @@ inline fun <reified T> List<Flow<T>>.combine(crossinline block: suspend (Array<T
 fun ByteArray.toSha1(): String = MessageDigest
 	.getInstance("SHA-1")
 	.digest(this)
-	.joinToString(separator = "", transform = { "%02x".format(it) })
+	.joinToString(separator = "") { "%02x".format(it) }
 
 fun String.toSha1Aptoide(): String = chunked(2).joinToString(separator = ":") { it.uppercase() }
 
 fun ByteArray.toSha256(): String = MessageDigest
 	.getInstance("SHA-256")
 	.digest(this)
-	.joinToString(separator = "", transform = { "%02x".format(it) })
+	.joinToString(separator = "") { "%02x".format(it) }
 
 fun PackageInfo.getSignature(): ByteArray = runCatching {
 	if (Build.VERSION.SDK_INT >= 28) {
@@ -102,17 +108,11 @@ fun PackageInfo.getSignatureSha256(): String = getSignature().toSha256()
 
 fun millisUntilHour(hour: Int): Long {
 	val calendar = Calendar.getInstance()
-	if (calendar.get(Calendar.HOUR_OF_DAY) >= hour) calendar.add(Calendar.HOUR, 24)
-	calendar.set(Calendar.HOUR_OF_DAY, hour)
-	calendar.set(Calendar.MINUTE, 0)
+	if (calendar[Calendar.HOUR_OF_DAY] >= hour) calendar.add(Calendar.HOUR, 24)
+	calendar[Calendar.HOUR_OF_DAY] = hour
+	calendar[Calendar.MINUTE] = 0
 	return calendar.timeInMillis - System.currentTimeMillis()
 }
-
-suspend fun AtomicBoolean.lock() {
-	while (!compareAndSet(false, true)) yield()
-}
-
-fun AtomicBoolean.unlock() = set(false)
 
 fun Intent.getIntentExtra(): Intent? = when {
 	Build.VERSION.SDK_INT > 33 -> getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
@@ -129,7 +129,7 @@ fun Context.isAndroidTv() = packageManager.isAndroidTv()
 
 fun randomUUID() = UUID.randomUUID().toString()
 
-fun isDark() = Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+fun isDark() = (Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
 fun Spanned.toAnnotatedString(): AnnotatedString = buildAnnotatedString {
 	val spanned = this@toAnnotatedString
@@ -164,6 +164,6 @@ fun Float.to2f() = String
 fun Long.formatBytes(): String {
 	if (this <= 0) return "0 B"
 	val units = arrayOf("B", "KB", "MB", "GB", "TB")
-	val digitGroups = (Math.log10(this.toDouble()) / Math.log10(1024.0)).toInt()
-	return java.text.DecimalFormat("#,##0.#").format(this / Math.pow(1024.0, digitGroups.toDouble())) + " " + units[digitGroups]
+	val digitGroups = (log10(this.toDouble()) / log10(1024.0)).toInt()
+	return java.text.DecimalFormat("#,##0.#").format(this / 1024.0.pow(digitGroups.toDouble())) + " " + units[digitGroups]
 }

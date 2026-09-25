@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,UnusedQuantity,MissingQuantity">
 
     <string name="app_name" translatable="false">APKUpdater</string>
     <string name="tab_apps">Aplikasi</string>
@@ -73,3 +73,4 @@
     </plurals>
 
 </resources>
+

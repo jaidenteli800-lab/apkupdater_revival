@@ -32,7 +32,6 @@ import com.apkupdater.util.Stringer
 import com.apkupdater.util.Themer
 import com.apkupdater.util.UpdatesNotification
 import com.apkupdater.util.addUserAgentInterceptor
-import com.apkupdater.util.isAndroidTv
 import com.apkupdater.util.play.PlayHttpClient
 import com.apkupdater.viewmodel.AppsViewModel
 import com.apkupdater.viewmodel.MainViewModel
@@ -50,7 +49,6 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 
@@ -136,7 +134,7 @@ val mainModule = module {
 	}
 
 	single {
-		val client = OkHttpClient.Builder().followRedirects(true).cache(get()).build()
+		val client = OkHttpClient.Builder().followRedirects(followRedirects = true).cache(get()).build()
 		val auroraClient = OkHttpClient.Builder()
             .followRedirects(true)
             .cache(get())
@@ -145,8 +143,8 @@ val mainModule = module {
             .addUserAgentInterceptor("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
             .build()
 		val apkPureClient = OkHttpClient.Builder().followRedirects(true).cache(get()).addUserAgentInterceptor("APKPure/3.19.39 (Aegon)").build()
-		val dir = File(androidContext().cacheDir, "downloads").apply { mkdirs() }
-		Downloader(client, apkPureClient, auroraClient, dir)
+		
+		Downloader(client, apkPureClient, auroraClient)
 	}
 
 	single { ApkMirrorRepository(get(), get(), androidContext().packageManager) }
@@ -155,11 +153,11 @@ val mainModule = module {
 
 	single { GitHubRepository(get(), get()) }
 
-	single { GitLabRepository(get(), get()) }
+	single { GitLabRepository(get()) }
 
 	single { ApkPureRepository(get(), get(), get()) }
 
-	single { AptoideRepository(get(), get(), get()) }
+	single { AptoideRepository(androidContext(), get(), get()) }
 
 	single { PlayRepository(get(), get(), get(), get()) }
 
@@ -173,13 +171,13 @@ val mainModule = module {
 
 	single { KryptoBuilder.nocrypt(get(), androidContext().getString(R.string.app_name)) }
 
-	single { Prefs(get(), androidContext().isAndroidTv()) }
+	single { Prefs(get()) }
 
-	single { UpdatesNotification(get()) }
+	single { UpdatesNotification(androidContext()) }
 
 	single { Clipboard(androidContext()) }
 
-	single { SessionInstaller(get(), get(), get()) }
+	single { SessionInstaller(androidContext(), get(), get()) }
 
 	single { SnackBar() }
 
@@ -199,7 +197,7 @@ val mainModule = module {
 
 	viewModel { UpdatesViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
-	viewModel { SettingsViewModel(get(), get(), WorkManager.getInstance(get()), get(), get(), get(), get(), get()) }
+	viewModel { SettingsViewModel(get(), get(), WorkManager.getInstance(androidContext()), get(), get(), get(), get(), get()) }
 
 	viewModel { SearchViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
 

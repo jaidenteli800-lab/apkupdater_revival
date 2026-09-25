@@ -1,5 +1,5 @@
 									  
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,UnusedQuantity,MissingQuantity">
 
     <string name="tab_apps">Apps</string>
     <string name="tab_search">Suche</string>
@@ -63,3 +63,4 @@
     </plurals>
 
 </resources>
+

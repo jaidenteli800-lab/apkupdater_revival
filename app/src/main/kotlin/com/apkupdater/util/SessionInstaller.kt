@@ -28,11 +28,10 @@ import java.util.zip.ZipFile
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 @OptIn(ExperimentalAtomicApi::class)
-@Suppress("SpellCheckingInspection")
 class SessionInstaller(
     private val context: Context,
     private val installLog: InstallLog,
-    private val prefs: Prefs
+    private val prefs: Prefs,
 ) {
     companion object {
         const val INSTALL_ACTION = "com.apkupdater.INSTALL_ACTION"
@@ -71,7 +70,7 @@ class SessionInstaller(
     }
 
     suspend fun install(id: Int, packageName: String, stream: InputStream) {
-        val tempFile = File(context.cacheDir, "install_${id}_${System.currentTimeMillis()}.tmp")
+        val tempFile = File(getTempDir(), "install_${id}_${System.currentTimeMillis()}.tmp")
         try {
             withContext(Dispatchers.IO) {
                 copyWithProgress(id, stream, tempFile)
@@ -79,7 +78,7 @@ class SessionInstaller(
             install(id, packageName, tempFile)
         } catch (e: Exception) {
             Log.e("SessionInstaller", "Install failed", e)
-            installLog.emitStatus(AppInstallStatus(false, id, true, "Install Error: ${e.message}"))
+            installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "Install Error: ${e.message}"))
         } finally {
             tempFile.delete()
         }
@@ -110,7 +109,7 @@ class SessionInstaller(
 
     private suspend fun installXapkFile(id: Int, packageName: String, file: File) {
         installLog.log("Extracting Bundle/XAPK for $packageName")
-        val tempDir = File(context.cacheDir, "xapk_ext_${id}_${System.currentTimeMillis()}")
+        val tempDir = File(getTempDir(), "xapk_ext_${id}_${System.currentTimeMillis()}")
         tempDir.mkdirs()
         val apks = mutableListOf<File>()
         try {
@@ -140,7 +139,7 @@ class SessionInstaller(
         } catch (e: Exception) {
             Log.e("SessionInstaller", "XAPK extraction failed", e)
             installLog.log("Bundle error for $packageName: ${e.message}")
-            installLog.emitStatus(AppInstallStatus(false, id, true, "Bundle Error: ${e.message}"))
+            installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "Bundle Error: ${e.message}"))
         } finally {
             tempDir.deleteRecursively()
         }
@@ -197,7 +196,7 @@ class SessionInstaller(
                 while (bytes >= 0) {
                     outStream.write(buffer, 0, bytes)
                     totalRead += bytes
-                    if (totalRead - lastEmitted > 512 * 1024) {
+                    if ((totalRead - lastEmitted) > 512 * 1024) {
                         installLog.emitProgress(AppInstallProgress(id, totalRead))
                         lastEmitted = totalRead
                     }
@@ -268,16 +267,21 @@ class SessionInstaller(
                     friendlyError = "Persistent system apps cannot be updated this way"
                 }
 
-                installLog.emitStatus(AppInstallStatus(false, id, true, "Root failed: $friendlyError"))
+                installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "Root failed: $friendlyError"))
             } else {
                 installLog.log("Root: $packageName success")
-                installLog.emitStatus(AppInstallStatus(true, id, true))
+                installLog.emitStatus(AppInstallStatus(success = true, id = id, snack = true))
             }
         } catch (e: Exception) {
-            installLog.emitStatus(AppInstallStatus(false, id, true, "Root Crash: ${e.message}"))
+            installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "Root Crash: ${e.message}"))
         } finally {
             tmpFiles.forEach { Shell.cmd("rm -f '$it'").exec() }
         }
+    }
+
+    private fun getTempDir(): File {
+        val base = context.externalCacheDir ?: context.cacheDir
+        return File(base, "installer_temp").apply { mkdirs() }
     }
 
     @SuppressLint("RequestInstallPackagesPolicy")
@@ -317,7 +321,7 @@ class SessionInstaller(
                     when (status) {
                         PackageInstaller.STATUS_SUCCESS -> {
                             installLog.log("Success: $packageName")
-                            installLog.emitStatus(AppInstallStatus(true, id, true))
+                            installLog.emitStatus(AppInstallStatus(success = true, id = id, snack = true))
                             try { context.unregisterReceiver(this) } catch (_: Exception) {}
                             if (continuation.isActive) continuation.resume(true) {_, _, _ -> }
                         }
@@ -336,7 +340,7 @@ class SessionInstaller(
                             if (confirmIntent != null) {
                                 context.startActivity(confirmIntent)
                             } else {
-                                installLog.emitStatus(AppInstallStatus(false, id, true, "User action required but intent missing"))
+                                installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "User action required but intent missing"))
                                 try { context.unregisterReceiver(this) } catch (_: Exception) {}
                                 if (continuation.isActive) continuation.resume(false) {_, _, _ -> }
                             }
@@ -347,7 +351,8 @@ class SessionInstaller(
                             if (friendlyError.contains("REJECTED_BY_BUILDTYPE") || status == -3001) {
                                 friendlyError = "Signature mismatch: Uninstall existing app first"
                             }
-                            installLog.emitStatus(AppInstallStatus(false, id, true, friendlyError))
+                            installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = friendlyError))
+                            try { packageInstaller.abandonSession(intent?.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1) ?: -1) } catch (_: Exception) {}
                             try { context.unregisterReceiver(this) } catch (_: Exception) {}
                             if (continuation.isActive) continuation.resume(false) {_, _, _ -> }
                         }
@@ -395,7 +400,7 @@ class SessionInstaller(
             } catch (e: Exception) {
                 Log.e("SessionInstaller", "Session failed", e)
                 try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
-                installLog.emitStatus(AppInstallStatus(false, id, true, "Session failure: ${e.message}"))
+                installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "Session failure: ${e.message}"))
                 if (continuation.isActive) continuation.resume(false) {_, _, _ -> }
             }
         }

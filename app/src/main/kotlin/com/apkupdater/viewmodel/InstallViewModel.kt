@@ -76,12 +76,12 @@ abstract class InstallViewModel(
         val appName = "App"
         if (it.success) {
             installLog.log("Install success for ID: ${it.id}")
-            notification.showStatus(appName, stringer.get(R.string.notif_success), success = true)
+            notification.showStatus(appName, stringer.get(R.string.notif_success))
             maxProgressMap.remove(it.id)
             finishInstall(it.id).join()
         } else {
             installLog.log("Install failed for ID: ${it.id}. Error: ${it.errorMessage}")
-            notification.showStatus(appName, stringer.get(R.string.notif_failed), false)
+            notification.showStatus(appName, stringer.get(R.string.notif_failed))
             maxProgressMap.remove(it.id)
             installLog.emitProgress(AppInstallProgress(it.id, 0L))
             cancelInstall(it.id).join()
@@ -89,7 +89,7 @@ abstract class InstallViewModel(
     }.launchIn(viewModelScope)
 
     protected fun subscribeToInstallProgress(
-        block: (AppInstallProgress) -> Unit
+        block: (AppInstallProgress) -> Unit,
     ) = installLog.progress().onEach { progressEvent ->
         val id = progressEvent.id
         val total = progressEvent.total ?: 0L
@@ -136,11 +136,14 @@ abstract class InstallViewModel(
                 val tempFiles = mutableListOf<File>()
                 var currentProgress = 0L
                 try {
+                    val baseDir = installer.getContext().externalCacheDir ?: installer.getContext().cacheDir
+                    val downloadDir = File(baseDir, "installer_cache").apply { mkdirs() }
+                    
                     files.forEachIndexed { index, file ->
                         val response = downloader.downloadResponse(file.url, headers)
                             ?: throw Exception("Failed to download split $index")
                         
-                        val tempFile = File(installer.getContext().cacheDir, "${packageName}_${index}_${System.currentTimeMillis()}.apk")
+                        val tempFile = File(downloadDir, "${packageName}_${index}_${System.currentTimeMillis()}.apk")
                         tempFiles.add(tempFile)
                         
                         val buffer = ByteArray(128 * 1024)
@@ -195,7 +198,7 @@ abstract class InstallViewModel(
     }.getOrElse {
         Log.e("InstallViewModel", "Error in downloadAndInstall.", it)
         installLog.log("Download error for $packageName: ${it.message}")
-        notification.showStatus(packageName, stringer.get(R.string.notif_failed), false)
+        notification.showStatus(packageName, stringer.get(R.string.notif_failed))
         cancelInstall(id)
     }
 

@@ -100,7 +100,7 @@ class PlayRepository(
         Log.e("PlayRepository", "Error searching for $text.", it)
     }
 
-    suspend fun updates(apps: List<AppInstalled>) = flow {
+    fun updates(apps: List<AppInstalled>) = flow {
         val authData = auth()
         val details = AppDetailsHelper(authData)
             .using(playHttpClient)

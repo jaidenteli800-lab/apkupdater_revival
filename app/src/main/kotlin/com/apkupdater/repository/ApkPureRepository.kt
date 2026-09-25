@@ -61,12 +61,12 @@ class ApkPureRepository(
     }
 
     private fun filterAlpha(update: AppUpdateResponse) = when {
-        prefs.ignoreAlpha.get() && update.version_name.contains("alpha", true) -> false
+        prefs.ignoreAlpha.get() && update.version_name.contains(other = "alpha", ignoreCase = true) -> false
         else -> true
     }
 
     private fun filterBeta(update: AppUpdateResponse) = when {
-        prefs.ignoreBeta.get() && update.version_name.contains("beta", true) -> false
+        prefs.ignoreBeta.get() && update.version_name.contains(other = "beta", ignoreCase = true) -> false
         else -> true
     }
 

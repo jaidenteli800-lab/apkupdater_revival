@@ -12,17 +12,15 @@ class InstallLog {
 
     private val status = MutableSharedFlow<AppInstallStatus>(100)
     private val progress = MutableSharedFlow<AppInstallProgress>(100)
-    private val statusUpdate = MutableSharedFlow<Pair<Int, String>>(100)
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     
     @Volatile var currentInstallId: Int = 0
 
     fun status() = status.asSharedFlow()
     fun progress() = progress.asSharedFlow()
-    fun statusUpdate() = statusUpdate.asSharedFlow()
     fun logs() = _logs.asStateFlow()
 
-    fun cancelCurrentInstall() = status.tryEmit(AppInstallStatus(false, currentInstallId, false))
+    fun cancelCurrentInstall() = status.tryEmit(AppInstallStatus(success = false, id = currentInstallId, snack = false))
     
     fun emitStatus(newStatus: AppInstallStatus) {
         status.tryEmit(newStatus)
@@ -35,10 +33,6 @@ class InstallLog {
     
     fun emitProgress(newProgress: AppInstallProgress) = progress.tryEmit(newProgress)
 
-    fun emitStatusUpdate(id: Int, status: String) {
-        statusUpdate.tryEmit(id to status)
-    }
-    
     fun log(event: String) {
         val currentLogs = _logs.value.toMutableList()
         currentLogs.add(event)
@@ -48,7 +42,4 @@ class InstallLog {
         _logs.value = currentLogs
     }
 
-    fun clear() {
-        _logs.value = emptyList()
-    }
 }

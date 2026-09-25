@@ -18,7 +18,7 @@ class SearchRepository(
     private val apkPureRepository: ApkPureRepository,
     private val gitLabRepository: GitLabRepository,
     private val playRepository: PlayRepository,
-    private val prefs: Prefs
+    private val prefs: Prefs,
 ) {
 
     fun search(text: String) = flow {
@@ -34,10 +34,14 @@ class SearchRepository(
 
         if (sources.isNotEmpty()) {
             sources.combine { updates ->
-                val result = updates.filter { it.isSuccess }.mapNotNull { it.getOrNull() }
+                val result = updates.asSequence()
+                    .filter { it.isSuccess }
+                    .mapNotNull { it.getOrNull() }
+                    .toList()
+
                 val flattened = result.flatten()
                     .groupBy { it.packageName }
-                    .map { (_, updates) -> updates.maxBy { it.versionCode } }
+                    .map { (_, updates) -> updates.maxByOrNull { it.versionCode }!! }
                     .sortedBy { it.name }
                 emit(Result.success(flattened))
             }.collect()

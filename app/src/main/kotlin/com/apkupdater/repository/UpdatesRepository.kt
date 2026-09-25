@@ -35,7 +35,7 @@ class UpdatesRepository(
                         flow.onStart { emit(emptyList()) }.catch { e ->
                             Log.e("UpdatesRepository", "Error in source $name", e)
                             emit(emptyList())
-                        }
+                        },
                     )
                 }
 
@@ -54,7 +54,7 @@ class UpdatesRepository(
                             .flatMap { it }
                             .groupBy { it.packageName }
                             .map { (packageName, updates) ->
-                                val bestUpdate = updates.maxBy { it.versionCode }
+                                val bestUpdate = updates.maxByOrNull { it.versionCode }!!
                                 val app = apps.find { it.packageName == packageName }
                                 bestUpdate.copy(isPersistent = app?.isPersistent ?: false)
                             }

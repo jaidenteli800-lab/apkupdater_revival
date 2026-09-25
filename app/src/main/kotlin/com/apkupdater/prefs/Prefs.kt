@@ -9,7 +9,6 @@ import com.kryptoprefs.preferences.KryptoPrefs
 
 class Prefs(
 	prefs: KryptoPrefs,
-	isAndroidTv: Boolean
 ): KryptoContext(prefs) {
 	val ignoredApps = json("ignoredApps", emptyList<String>(), true)
 	val ignoredVersions = json("ignoredVersions", emptyList<Int>(), true)

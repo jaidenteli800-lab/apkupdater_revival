@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 
 class UpdatesViewModel(
@@ -65,7 +66,7 @@ class UpdatesViewModel(
 
 	fun state(): StateFlow<UpdatesUiState> = state
 
-	fun refresh(load: Boolean = true) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
+	fun refresh(load: Boolean = true) = viewModelScope.launch(Dispatchers.IO) {
 		if (load) {
 			loadingJob?.cancel()
 			loadingJob = viewModelScope.launch {
@@ -86,7 +87,7 @@ class UpdatesViewModel(
 				// But after the first emission, if it's empty, it's likely a real result from a source.
 				// Also, if progress is already high, we can finish.
 				val progress = (state.value as? UpdatesUiState.Loading)?.progress ?: 0f
-				if (freshUpdates.isNotEmpty() || !load || emissionCount > 1 || (progress > 0.8f)) {
+				if (freshUpdates.isNotEmpty() || !load || emissionCount > 1 || progress > 0.8f) {
 					loadingJob?.cancel()
 					val currentUpdates = state.value.updates()
 					val mergedUpdates = freshUpdates.map { fresh ->
@@ -103,13 +104,17 @@ class UpdatesViewModel(
 							fresh
 						}
 					}
-					setSuccess(mergedUpdates)
+					mutex.withLock {
+						setSuccess(mergedUpdates)
+					}
 				}
 			}
             
         // Fallback: If simulation finished but no updates found
         if (state.value is UpdatesUiState.Loading) {
-            setSuccess(emptyList())
+            mutex.withLock {
+                setSuccess(emptyList())
+            }
         }
 	}
 
@@ -137,7 +142,8 @@ class UpdatesViewModel(
 	}
 
 	fun installAll() = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
-		if (installer.checkPermission()) {
+		val isRoot = prefs.rootInstall.get()
+		if (isRoot || installer.checkPermission()) {
 			val currentUpdates = state.value.updates()
 			val toInstall = currentUpdates.filter { !it.isInstalling && !it.isPersistent }
 
@@ -168,22 +174,22 @@ class UpdatesViewModel(
 
 	override fun cancelInstall(id: Int): Job = viewModelScope.launch(Dispatchers.IO) {
 		super.cancelInstall(id).join()
-		val currentState = state.value
-		if (currentState is UpdatesUiState.Success) {
+		(state.value as? UpdatesUiState.Success)?.let { currentState ->
 			state.value = UpdatesUiState.Success(currentState.updates.toMutableList().setIsInstalling(id = id, b = false))
 		}
 		installer.finish()
 	}
 
 	override fun finishInstall(id: Int) = viewModelScope.launchWithMutex(mutex, Dispatchers.IO) {
-		state.value = UpdatesUiState.Success(state.value.mutableUpdates().removeId(id))
+		(state.value as? UpdatesUiState.Success)?.let { currentState ->
+			state.value = UpdatesUiState.Success(currentState.updates.toMutableList().removeId(id))
+		}
 		installer.finish()
 	}
 
 	override fun downloadAndRootInstall(update: AppUpdate): Job = viewModelScope.launch(Dispatchers.IO) {
-		val currentState = state.value
-		if (currentState is UpdatesUiState.Success) {
-			state.value = UpdatesUiState.Success(currentState.updates.toMutableList().setIsInstalling(update.id, true))
+		(state.value as? UpdatesUiState.Success)?.let { currentState ->
+			state.value = UpdatesUiState.Success(currentState.updates.toMutableList().setIsInstalling(id = update.id, b = true))
 		}
 		downloadAndInstall(update.id, update.packageName, update.link)
 	}

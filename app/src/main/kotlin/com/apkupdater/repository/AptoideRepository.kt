@@ -53,7 +53,7 @@ class AptoideRepository(
         Log.e("AptoideRepository", "Error looking for updates.", it)
     }
 
-    suspend fun search(text: String) = flow {
+    fun search(text: String) = flow {
         val request = ListSearchAppsRequest(text, "10", query, buildFilterList(), buildStoreList())
         val response = service.searchApps(request)
         val updates = response.datalist.list.map{ it.toAppUpdate(null) }

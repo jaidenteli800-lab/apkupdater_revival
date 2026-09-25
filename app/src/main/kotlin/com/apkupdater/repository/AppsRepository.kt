@@ -17,7 +17,7 @@ class AppsRepository(
 	private val prefs: Prefs
 ) {
 
-	suspend fun getApps() = flow {
+	fun getApps() = flow {
 		val apps = context.packageManager
 			.getInstalledPackages(getSignatureFlag())
 			.asSequence()
