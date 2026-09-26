@@ -21,14 +21,8 @@ The 3.x branch is a full rewrite using modern technologies like **Jetpack Compos
 * **Root install** of updates.
 * No ads. No tracking.
 * **Languages**: Albanian, Arabic, Burmese, Dutch, English, German, Hebrew, Hungarian, Indonesian, Italian, Korean, Malay, Portuguese, Romanian, Russian, Simplified Chinese, Spanish, Traditional Chinese, Turkish.
-
-# Download
-* [Stable Release (3.0.3)](https://github.com/rumboalla/apkupdater/releases/download/3.0.3/com.apkupdater-release.apk)
-* [CI Pre-release Builds](https://github.com/rumboalla/apkupdater/releases?q=CI&expanded=true)
-* [Older releases](https://github.com/rumboalla/apkupdater/releases)
-
 # Translations
-If you want to help with translations, open a [Pull Request](https://github.com/rumboalla/apkupdater/pulls) or an [Issue](https://github.com/rumboalla/apkupdater/issues) with the translated [strings.xml](https://github.com/rumboalla/apkupdater/blob/3.x/app/src/main/res/values/strings.xml).
+If you want to help with translations, open a [Pull Request](https://github.com/jaidenteli80/apkupdater_revival/pulls) or an [Issue](https://github.com/jaidenteli80/apkupdater_revival/issues) with the translated [strings.xml](https://github.com/jaidenteli80/apkupdater_revival/blob/3.x/app/src/main/res/values/strings.xml).
 
 * Albanian by [Jvr2022](https://github.com/Jvr2022)
 * Arabic by [Muhammadbahaa2001](https://github.com/Muhammadbahaa2001)
@@ -60,12 +54,3 @@ If you want to help with translations, open a [Pull Request](https://github.com/
 
 | ![5](https://github.com/rumboalla/apkupdater/assets/21153554/bbf1132a-b0b6-4890-aed7-8fe95c0da11b) | ![6](https://github.com/rumboalla/apkupdater/assets/21153554/32236bfb-b53e-4999-8363-e957fa8f77a9) |
 |----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-
-# Other Projects
-* [CoolRs](https://github.com/rumboalla/coolrs): A collection of Android RenderScript effects. 
-* [KryptoPrefs](https://github.com/rumboalla/KryptoPrefs): Kotlin library for handling encrypted SharedPreferences.
-* [KryptoStore](https://github.com/rumboalla/kryptostore): A thin wrapper around Jetpack Datastore Preferences that provides useful features.
-
-# License
-Copyright &copy; 2016-2024 rumboalla.  
-Licensed under the [GNU General Public License v3](https://www.gnu.org/licenses/gpl-3.0.en.html).
