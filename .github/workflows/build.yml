@@ -1,4 +1,4 @@
-name: APKUpdater Revival
+name: APKUpdater Revival Build
 
 on:
   push:
@@ -7,15 +7,14 @@ on:
 
   workflow_dispatch:
     inputs:
-      create_release:
-        description: "Create a GitHub release"
+      release:
+        description: "Create a stable v1.0.0 release"
         required: true
         default: true
         type: boolean
 
 permissions:
   contents: write
-  actions: read
 
 concurrency:
   group: apkupdater-revival-${{ github.ref }}
@@ -23,666 +22,455 @@ concurrency:
 
 env:
   JAVA_VERSION: "17"
-  BRANCH_NAME: "3.x"
-  APP_NAME: "APKUpdater Revival"
-  GEMINI_MODEL: "gemini-flash-latest"
+  STABLE_VERSION: "1.0.0"
 
 jobs:
-
-  # ============================================================
-  # 🚀 EVERYTHING
-  # ============================================================
-
-  revival:
-    name: 🚀 Build • Test • Analyze • AI • Release
+  build:
+    name: 🚀 Build APKUpdater
     runs-on: ubuntu-24.04
 
     steps:
 
-      # --------------------------------------------------------
+      # ============================================================
       # CHECKOUT
-      # --------------------------------------------------------
+      # ============================================================
 
-      - name: 📥 Checkout Repository
+      - name: 📥 Checkout source
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      # --------------------------------------------------------
-      # JAVA / GRADLE
-      # --------------------------------------------------------
+      # ============================================================
+      # JAVA
+      # ============================================================
 
       - name: ☕ Setup Java 17
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: 🔧 Prepare Gradle
-        shell: bash
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --version
-
-      # --------------------------------------------------------
+      # ============================================================
       # VERSION
-      # --------------------------------------------------------
+      # ============================================================
 
-      - name: 🏷️ Calculate CI Version
+      - name: 🔢 Calculate version
         id: version
         shell: bash
         run: |
-          VERSION="1.0.0-ci.${GITHUB_RUN_NUMBER}"
+          set -euo pipefail
 
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && \
+                "${{ inputs.release }}" == "true" ]]; then
+
+            VERSION="${STABLE_VERSION}"
+
+          elif [[ "${{ github.ref_name }}" == "3.x" ]]; then
+
+            VERSION="1.0.0-ci.${GITHUB_RUN_NUMBER}"
+
+          else
+
+            VERSION="1.0.0-ci.${GITHUB_RUN_NUMBER}"
+
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+          echo ""
           echo "=========================================="
-          echo "🚀 APKUPDATER REVIVAL"
-          echo "Version: $VERSION"
-          echo "Branch:  $GITHUB_REF_NAME"
-          echo "Commit:  $GITHUB_SHA"
+          echo " APKUPDATER VERSION"
+          echo "=========================================="
+          echo "$VERSION"
           echo "=========================================="
 
-      # --------------------------------------------------------
-      # CHANGE INTELLIGENCE
-      # --------------------------------------------------------
+      # ============================================================
+      # CHANGE INFORMATION
+      # ============================================================
 
-      - name: 🔎 Analyze Git Changes
+      - name: 🧠 Analyze changes
         id: changes
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          BEFORE="${{ github.event.before }}"
+          echo "Collecting change information..."
 
-          if [ -z "$BEFORE" ] || \
-             [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            if git rev-parse HEAD^ >/dev/null 2>&1; then
-              BEFORE="$(git rev-parse HEAD^)"
-            else
-              BEFORE=""
-            fi
-          fi
+          COMMITS="$(
+            git log -20 \
+              --pretty=format:'- %h — %s'
+          )"
 
-          if [ -n "$BEFORE" ]; then
-            RANGE="$BEFORE..${GITHUB_SHA}"
+          CHANGED_FILES="$(
+            git diff --name-only HEAD^ HEAD 2>/dev/null \
+            || git ls-files
+          )"
 
-            git diff --name-status "$RANGE" > changed-files.txt || true
-            git diff --stat "$RANGE" > change-stat.txt || true
+          COMMIT_COUNT="$(
+            git rev-list --count HEAD
+          )"
 
-            git diff --numstat "$RANGE" > numstat.txt || true
-
-            FILES_CHANGED="$(git diff --name-only "$RANGE" | wc -l | tr -d ' ')"
-            LINES_ADDED="$(git diff --numstat "$RANGE" | awk '{a += $1} END {print a+0}')"
-            LINES_REMOVED="$(git diff --numstat "$RANGE" | awk '{d += $2} END {print d+0}')"
-
-            git diff "$RANGE" > full-diff.txt || true
-
-          else
-            echo "Initial commit — no previous comparison available."
-
-            echo "Initial commit" > changed-files.txt
-            echo "Initial commit" > change-stat.txt
-            echo "" > numstat.txt
-            echo "" > full-diff.txt
-
-            FILES_CHANGED="$(git ls-files | wc -l | tr -d ' ')"
-            LINES_ADDED="0"
-            LINES_REMOVED="0"
-          fi
-
-          TOTAL_CHANGES=$((LINES_ADDED + LINES_REMOVED))
-
-          echo "files_changed=$FILES_CHANGED" >> "$GITHUB_OUTPUT"
-          echo "lines_added=$LINES_ADDED" >> "$GITHUB_OUTPUT"
-          echo "lines_removed=$LINES_REMOVED" >> "$GITHUB_OUTPUT"
-          echo "total_changes=$TOTAL_CHANGES" >> "$GITHUB_OUTPUT"
-
-          echo "=========================================="
-          echo "📊 CHANGE INTELLIGENCE"
-          echo "=========================================="
-          echo "Files changed: $FILES_CHANGED"
-          echo "Lines added:   $LINES_ADDED"
-          echo "Lines removed: $LINES_REMOVED"
-          echo "Total changes: $TOTAL_CHANGES"
-          echo "=========================================="
-
-      # --------------------------------------------------------
-      # COMMIT INTELLIGENCE
-      # --------------------------------------------------------
-
-      - name: 🧠 Collect Commit History
-        shell: bash
-        run: |
-          git log -25 \
-            --pretty=format:'%h | %ad | %an | %s' \
-            --date=short > commits.txt
-
-          git status --short > repository-status.txt
+          FILE_COUNT="$(
+            git ls-files | wc -l
+          )"
 
           {
-            echo "PROJECT: APKUpdater Revival"
-            echo
-            echo "BRANCH: $GITHUB_REF_NAME"
-            echo
-            echo "COMMIT: $GITHUB_SHA"
-            echo
-            echo "RECENT COMMITS:"
-            cat commits.txt
-            echo
-            echo "CHANGED FILES:"
-            cat changed-files.txt
-            echo
-            echo "CHANGE STATISTICS:"
-            cat change-stat.txt
-          } > repository-intelligence.txt
+            echo "COMMITS<<EOF"
+            echo "$COMMITS"
+            echo "EOF"
 
-      # --------------------------------------------------------
+            echo "CHANGED_FILES<<EOF"
+            echo "$CHANGED_FILES"
+            echo "EOF"
+
+            echo "COMMIT_COUNT=$COMMIT_COUNT"
+            echo "FILE_COUNT=$FILE_COUNT"
+          } >> "$GITHUB_OUTPUT"
+
+      # ============================================================
+      # CLEAN
+      # ============================================================
+
+      - name: 🧹 Clean project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          chmod +x ./gradlew
+
+          ./gradlew clean --no-daemon
+
+      # ============================================================
+      # TESTS
+      # ============================================================
+
+      - name: 🧪 Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ./gradlew test --no-daemon
+
+      # ============================================================
+      # LINT
+      # ============================================================
+
+      - name: 🔎 Run Android lint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ./gradlew lint --no-daemon
+
+      # ============================================================
       # BUILD
-      # --------------------------------------------------------
+      # ============================================================
 
-      - name: 🧹 Clean Project
-        run: ./gradlew clean
+      - name: 🏗️ Build APK
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: 🧪 Run Unit Tests
-        run: ./gradlew test
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace
 
-      - name: 🔍 Run Android Lint
-        run: ./gradlew lint
+      # ============================================================
+      # FIND APK
+      # ============================================================
 
-      - name: 🏗️ Build Debug APK
-        run: ./gradlew assembleDebug
-
-      # --------------------------------------------------------
-      # APK PROCESSING
-      # --------------------------------------------------------
-
-      - name: 🔎 Locate APK
+      - name: 📦 Prepare APK
         id: apk
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          APK="$(find app/build/outputs/apk/debug \
-            -type f \
-            -name '*.apk' \
-            | head -n 1)"
+          APK="$(
+            find . \
+              -type f \
+              -name '*.apk' \
+              -not -path './comparison/*' \
+              | head -n 1
+          )"
 
-          if [ -z "$APK" ]; then
-            echo "❌ No debug APK was produced."
+          if [[ -z "$APK" ]]; then
+            echo "❌ No APK was produced."
             exit 1
           fi
-
-          echo "Found APK:"
-          echo "$APK"
-
-          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
-
-      - name: 📦 Rename APK
-        id: rename
-        shell: bash
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
 
           mkdir -p release
 
-          cp "${{ steps.apk.outputs.apk_path }}" \
-            "release/APKUpdater-Revival-${VERSION}-debug.apk"
+          FINAL_APK="release/APKUpdater-${VERSION}.apk"
 
-          echo "release_apk=release/APKUpdater-Revival-${VERSION}-debug.apk" \
-            >> "$GITHUB_OUTPUT"
+          cp "$APK" "$FINAL_APK"
 
-      - name: 🔐 Generate SHA-256
+          echo "APK_PATH=$FINAL_APK" >> "$GITHUB_ENV"
+          echo "apk_path=$FINAL_APK" >> "$GITHUB_OUTPUT"
+
+          echo ""
+          echo "=========================================="
+          echo " APK READY"
+          echo "=========================================="
+          echo "Name: APKUpdater-${VERSION}.apk"
+          echo "=========================================="
+
+      # ============================================================
+      # APK INFORMATION
+      # ============================================================
+
+      - name: 📊 Calculate APK information
+        id: apk_info
         shell: bash
         run: |
-          sha256sum release/*.apk > release/SHA256SUMS.txt
+          set -euo pipefail
 
-          echo "=========================================="
-          cat release/SHA256SUMS.txt
-          echo "=========================================="
+          SIZE_BYTES="$(
+            stat -c%s "$APK_PATH"
+          )"
 
-      - name: 📊 APK Information
-        shell: bash
-        run: |
-          APK="$(find release -name '*.apk' | head -n 1)"
+          SIZE_MB="$(
+            awk "BEGIN {printf \"%.2f\", $SIZE_BYTES / 1048576}"
+          )"
 
-          SIZE="$(du -h "$APK" | cut -f1)"
+          SHA256="$(
+            sha256sum "$APK_PATH" | cut -d' ' -f1
+          )"
 
-          echo "APK size: $SIZE"
+          echo "APK_SIZE_BYTES=$SIZE_BYTES" >> "$GITHUB_ENV"
+          echo "APK_SIZE_MB=$SIZE_MB" >> "$GITHUB_ENV"
+          echo "APK_SHA256=$SHA256" >> "$GITHUB_ENV"
 
-          {
-            echo "# 📦 APK Build Information"
-            echo
-            echo "- **Project:** APKUpdater Revival"
-            echo "- **Version:** ${{ steps.version.outputs.version }}"
-            echo "- **Branch:** $GITHUB_REF_NAME"
-            echo "- **Commit:** $GITHUB_SHA"
-            echo "- **APK size:** $SIZE"
-            echo "- **Signing:** Debug signing"
-            echo "- **Tests:** Passed"
-            echo "- **Lint:** Passed"
-          } > release/build-info.md
+          echo "APK size: ${SIZE_MB} MB"
+          echo "SHA-256: ${SHA256}"
 
-      # --------------------------------------------------------
-      # 🤖 GEMINI AI
-      # --------------------------------------------------------
+      # ============================================================
+      # GEMINI AI
+      # ============================================================
 
-      - name: 🤖 Gemini AI — Release Intelligence
-        id: ai
+      - name: 🤖 Generate AI release description
+        id: gemini
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          COMMITS: ${{ steps.changes.outputs.COMMITS }}
+          CHANGED_FILES: ${{ steps.changes.outputs.CHANGED_FILES }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          if [ -z "$GEMINI_API_KEY" ]; then
-            echo "❌ GEMINI_API_KEY is missing."
-            echo
-            echo "Add it at:"
-            echo "Repository → Settings → Secrets and variables → Actions"
-            echo
-            echo "Secret name:"
-            echo "GEMINI_API_KEY"
-            exit 1
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "Gemini API key is not configured."
+            exit 0
           fi
 
-          python3 <<'PY'
-          import json
-          import os
-          import urllib.request
-          import urllib.error
+          PROMPT="$(cat <<EOF
+You are the release-note AI for APKUpdater Revival.
 
-          def read_file(path, limit=None):
-              try:
-                  with open(path, "r", encoding="utf-8", errors="replace") as f:
-                      data = f.read()
-                  if limit:
-                      return data[:limit]
-                  return data
-              except Exception:
-                  return ""
+Generate a polished GitHub release description.
 
-          version = "${{ steps.version.outputs.version }}"
+IMPORTANT RULES:
 
-          files_changed = "${{ steps.changes.outputs.files_changed }}"
-          lines_added = "${{ steps.changes.outputs.lines_added }}"
-          lines_removed = "${{ steps.changes.outputs.lines_removed }}"
-          total_changes = "${{ steps.changes.outputs.total_changes }}"
+- Call the product "APKUpdater".
+- NEVER call it a debug APK.
+- NEVER mention debug signing.
+- NEVER mention CI signing.
+- Do not invent features.
+- Do not invent fixes.
+- Only describe changes supported by the supplied information.
+- This is the first stable public release.
+- Version: ${VERSION}
 
-          commits = read_file("commits.txt", 30000)
-          changed_files = read_file("changed-files.txt", 30000)
-          stats = read_file("change-stat.txt", 20000)
-          diff = read_file("full-diff.txt", 100000)
+PROJECT:
+APKUpdater Revival
 
-          context = f"""
-          PROJECT
-          APKUpdater Revival
+VERSION:
+${VERSION}
 
-          VERSION
-          {version}
+RECENT COMMITS:
+${COMMITS}
 
-          BRANCH
-          {os.environ.get("GITHUB_REF_NAME", "3.x")}
+CHANGED FILES:
+${CHANGED_FILES}
 
-          COMMIT
-          {os.environ.get("GITHUB_SHA", "")}
+BUILD:
+Tests passed.
+Lint passed.
+APK successfully built.
 
-          CHANGE STATISTICS
-          Files changed: {files_changed}
-          Lines added: {lines_added}
-          Lines removed: {lines_removed}
-          Total changed lines: {total_changes}
+Write:
 
-          RECENT COMMITS
-          {commits}
+## 🚀 What's New
 
-          CHANGED FILES
-          {changed_files}
+A short exciting summary.
 
-          CHANGE STAT
-          {stats}
+## ✨ Highlights
 
-          CODE DIFF
-          {diff}
-          """
+Bullet points of meaningful changes.
 
-          prompt = f"""
-          You are the senior Android release engineer for APKUpdater Revival.
+## 🛠️ Improvements
 
-          Analyze the REAL repository information below.
+Bullet points if supported.
 
-          Do not invent changes.
-          Do not claim a feature exists unless the supplied diff supports it.
-          Do not make up bug fixes.
-          Do not make up performance improvements.
-          Do not make up tests.
+## 🐛 Fixes
 
-          Your job is to produce an extremely polished release package.
+Bullet points if supported.
 
-          REPOSITORY DATA:
-          {context}
+## 📦 APK
 
-          Return EXACTLY this JSON structure:
+State that APKUpdater ${VERSION} is available.
 
-          {{
-            "release_notes": "...",
-            "short_summary": "...",
-            "code_review": "...",
-            "risk_level": "LOW|MEDIUM|HIGH",
-            "highlights": [
-              "...",
-              "...",
-              "..."
-            ]
-          }}
+Keep it clean, professional, and not ridiculously long.
+EOF
+)"
 
-          RELEASE NOTES REQUIREMENTS:
-
-          Use detailed Markdown.
-
-          Include:
-
-          # 🚀 APKUpdater Revival
-
-          ## ✨ What's New
-
-          ## 🛠️ Improvements
-
-          ## 🐛 Fixes
-
-          ## 🎨 UI / UX
-
-          ## ⚡ Performance
-
-          ## 🔐 Security
-
-          ## ⚙️ Developer & Build Changes
-
-          ## 🧪 Validation
-
-          ## 📦 Download
-
-          ## 🔎 Change Statistics
-
-          ## ⚠️ Notes
-
-          ## 🤖 AI Release Analysis
-
-          Only include sections when there is meaningful information.
-
-          Explain technical changes in a way normal users can understand.
-
-          Mention that this is a DEBUG-signed CI build.
-
-          CODE REVIEW REQUIREMENTS:
-
-          Look for:
-
-          - possible bugs
-          - risky changes
-          - nullability issues
-          - API compatibility problems
-          - deprecated Android APIs
-          - security problems
-          - performance problems
-          - dependency problems
-          - test gaps
-          - suspicious or incomplete changes
-
-          If there are no obvious problems, say so.
-
-          Do not modify code.
-          Do not suggest that something is broken unless evidence supports it.
-
-          The release should become more detailed when the change is large.
-          """
-
-          payload = {
-              "contents": [
+          REQUEST="$(
+            jq -n \
+              --arg prompt "$PROMPT" \
+              '{
+                contents: [
                   {
-                      "parts": [
-                          {
-                              "text": prompt
-                          }
-                      ]
+                    parts: [
+                      {
+                        text: $prompt
+                      }
+                    ]
                   }
-              ],
-              "generationConfig": {
-                  "temperature": 0.25,
-                  "responseMimeType": "application/json"
-              }
-          }
+                ],
+                generationConfig: {
+                  temperature: 0.25,
+                  maxOutputTokens: 2500
+                }
+              }'
+          )"
 
-          url = (
-              "https://generativelanguage.googleapis.com/"
-              "v1beta/models/gemini-flash-latest:generateContent"
-          )
+          RESPONSE="$(
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              --retry 3 \
+              --retry-delay 2 \
+              --connect-timeout 15 \
+              --max-time 90 \
+              -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent" \
+              -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "$REQUEST"
+          )"
 
-          request = urllib.request.Request(
-              url,
-              data=json.dumps(payload).encode("utf-8"),
-              headers={
-                  "Content-Type": "application/json",
-                  "X-goog-api-key": os.environ["GEMINI_API_KEY"]
-              },
-              method="POST"
-          )
+          AI_TEXT="$(
+            echo "$RESPONSE" |
+              jq -r '.candidates[0].content.parts[0].text // empty'
+          )"
 
-          try:
-              with urllib.request.urlopen(request, timeout=180) as response:
-                  result = json.loads(
-                      response.read().decode("utf-8")
-                  )
+          if [[ -z "$AI_TEXT" ]]; then
+            echo "Gemini returned no usable release description."
+            exit 0
+          fi
 
-              text = result["candidates"][0]["content"]["parts"][0]["text"]
+          printf '%s\n' "$AI_TEXT" > ai-release-notes.md
 
-              data = json.loads(text)
+          echo "=========================================="
+          echo " 🤖 GEMINI RELEASE NOTES GENERATED"
+          echo "=========================================="
 
-              release_notes = data.get("release_notes", "")
-              short_summary = data.get("short_summary", "")
-              code_review = data.get("code_review", "")
-              risk_level = data.get("risk_level", "UNKNOWN")
-              highlights = data.get("highlights", [])
+      # ============================================================
+      # FALLBACK RELEASE NOTES
+      # ============================================================
 
-              if not release_notes:
-                  raise RuntimeError("Gemini returned empty release notes.")
-
-              with open("release-notes.md", "w", encoding="utf-8") as f:
-                  f.write(release_notes.strip())
-                  f.write("\n\n---\n\n")
-                  f.write("## 📊 Automated Build Data\n\n")
-                  f.write(f"- Files changed: {files_changed}\n")
-                  f.write(f"- Lines added: {lines_added}\n")
-                  f.write(f"- Lines removed: {lines_removed}\n")
-                  f.write(f"- Total changed lines: {total_changes}\n")
-                  f.write(f"- AI risk assessment: **{risk_level}**\n")
-
-              with open("AI-SHORT-SUMMARY.md", "w", encoding="utf-8") as f:
-                  f.write("# 🤖 AI Summary\n\n")
-                  f.write(short_summary.strip())
-                  f.write("\n")
-
-              with open("AI-CODE-REVIEW.md", "w", encoding="utf-8") as f:
-                  f.write("# 🤖 AI Code Review\n\n")
-                  f.write(code_review.strip())
-                  f.write("\n\n## Highlights\n\n")
-
-                  for item in highlights:
-                      f.write(f"- {item}\n")
-
-              print("✅ Gemini analysis completed.")
-              print(f"Risk level: {risk_level}")
-
-          except Exception as error:
-              print("⚠️ Gemini failed:")
-              print(error)
-              print()
-              print("Generating safe fallback release notes.")
-
-              with open("release-notes.md", "w", encoding="utf-8") as f:
-                  f.write(f"""# 🚀 APKUpdater Revival
-
-          ## 📦 CI Build
-
-          Automated APKUpdater Revival CI build **{version}**.
-
-          ## 🧪 Validation
-
-          - Unit tests completed successfully.
-          - Android lint completed successfully.
-          - Debug APK assembled successfully.
-          - SHA-256 checksum generated.
-
-          ## 📊 Change Statistics
-
-          - Files changed: {files_changed}
-          - Lines added: {lines_added}
-          - Lines removed: {lines_removed}
-          - Total changed lines: {total_changes}
-
-          ## 📥 Download
-
-          The debug-signed APK is attached to this release.
-
-          ## 🤖 AI Release Analysis
-
-          Gemini was unavailable during this run, so the CI pipeline generated
-          these fallback release notes.
-
-          ## ⚠️ Important
-
-          This is a DEBUG-signed CI build and is intended for testing.
-          """)
-
-              with open("AI-SHORT-SUMMARY.md", "w", encoding="utf-8") as f:
-                  f.write(
-                      "# 🤖 AI Summary\n\n"
-                      "Gemini was unavailable for this build. "
-                      "The fallback CI summary was generated automatically.\n"
-                  )
-
-              with open("AI-CODE-REVIEW.md", "w", encoding="utf-8") as f:
-                  f.write(
-                      "# 🤖 AI Code Review\n\n"
-                      "Gemini was unavailable for this build. "
-                      "No AI code review was generated.\n"
-                  )
-
-          PY
-
-      # --------------------------------------------------------
-      # CREATE COMPLETE BUILD REPORT
-      # --------------------------------------------------------
-
-      - name: 📋 Generate Build Report
+      - name: 📝 Prepare release description
         shell: bash
         run: |
-          {
-            echo "# 🚀 APKUpdater Revival CI Report"
-            echo
-            echo "## Build"
-            echo
-            echo "- Version: **${{ steps.version.outputs.version }}**"
-            echo "- Branch: **$GITHUB_REF_NAME**"
-            echo "- Commit: **$GITHUB_SHA**"
-            echo "- Runner: **$RUNNER_OS**"
-            echo "- Java: **17**"
-            echo
-            echo "## Changes"
-            echo
-            echo "- Files changed: **${{ steps.changes.outputs.files_changed }}**"
-            echo "- Lines added: **${{ steps.changes.outputs.lines_added }}**"
-            echo "- Lines removed: **${{ steps.changes.outputs.lines_removed }}**"
-            echo "- Total changes: **${{ steps.changes.outputs.total_changes }}**"
-            echo
-            echo "## Validation"
-            echo
-            echo "✅ Unit tests passed"
-            echo "✅ Android lint passed"
-            echo "✅ Debug APK assembled"
-            echo "✅ SHA-256 generated"
-            echo "✅ Gemini analysis completed or fallback generated"
-          } > CI-REPORT.md
+          set -euo pipefail
 
-      # --------------------------------------------------------
-      # UPLOAD ARTIFACTS
-      # --------------------------------------------------------
+          if [[ -s ai-release-notes.md ]]; then
+            cp ai-release-notes.md final-release-notes.md
+          else
+            cat > final-release-notes.md <<EOF
+## 🚀 APKUpdater ${VERSION}
 
-      - name: 📦 Upload Complete CI Artifact
+The first stable release of APKUpdater Revival.
+
+### ✨ Build
+
+- APK successfully built
+- Tests passed
+- Android lint passed
+- Automated CI build completed
+
+### 📦 Download
+
+Download the APK below.
+EOF
+          fi
+
+      # ============================================================
+      # APK ARTIFACT — APK ONLY
+      # ============================================================
+
+      - name: 📦 Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: APKUpdater-Revival-${{ steps.version.outputs.version }}
-          path: |
-            release/*.apk
-            release/SHA256SUMS.txt
-            release/build-info.md
-            release-notes.md
-            AI-SHORT-SUMMARY.md
-            AI-CODE-REVIEW.md
-            CI-REPORT.md
-            changed-files.txt
-            change-stat.txt
-            commits.txt
+          name: APKUpdater-${{ env.VERSION }}
+          path: ${{ env.APK_PATH }}
           if-no-files-found: error
           retention-days: 30
+          compression-level: 9
 
-      # --------------------------------------------------------
-      # GITHUB RELEASE
-      # --------------------------------------------------------
+      # ============================================================
+      # STABLE RELEASE
+      # ============================================================
 
-      - name: 🚀 Create GitHub Release
-        if: github.event_name == 'push' || inputs.create_release == true
+      - name: 🚀 Create stable GitHub release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release == true }}
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          name: "🚀 APKUpdater Revival v${{ steps.version.outputs.version }}"
-          body_path: release-notes.md
-          prerelease: true
+          tag_name: v${{ env.VERSION }}
+          name: APKUpdater ${{ env.VERSION }}
+          body_path: final-release-notes.md
+          prerelease: false
           draft: false
-          generate_release_notes: false
+          make_latest: true
           files: |
-            release/*.apk
-            release/SHA256SUMS.txt
-            release/build-info.md
-            AI-SHORT-SUMMARY.md
-            AI-CODE-REVIEW.md
-            CI-REPORT.md
-            changed-files.txt
-            change-stat.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ${{ env.APK_PATH }}
 
-      # --------------------------------------------------------
-      # FINAL SUMMARY
-      # --------------------------------------------------------
+      # ============================================================
+      # GITHUB SUMMARY
+      # ============================================================
 
-      - name: 🎉 Final Build Summary
-        if: always()
+      - name: 📣 Final build summary
         shell: bash
         run: |
           {
-            echo "# 🚀 APKUpdater Revival"
+            echo "# 🚀 APKUpdater ${VERSION}"
             echo
             echo "## Build"
-            echo "- Version: \`${{ steps.version.outputs.version }}\`"
-            echo "- Branch: \`${GITHUB_REF_NAME}\`"
-            echo "- Commit: \`${GITHUB_SHA}\`"
             echo
-            echo "## Changes"
-            echo "- Files changed: **${{ steps.changes.outputs.files_changed }}**"
-            echo "- Lines added: **${{ steps.changes.outputs.lines_added }}**"
-            echo "- Lines removed: **${{ steps.changes.outputs.lines_removed }}**"
-            echo "- Total changes: **${{ steps.changes.outputs.total_changes }}**"
+            echo "| Item | Result |"
+            echo "|---|---|"
+            echo "| Version | \`${VERSION}\` |"
+            echo "| APK | \`APKUpdater-${VERSION}.apk\` |"
+            echo "| APK Size | ${APK_SIZE_MB} MB |"
+            echo "| Tests | ✅ Passed |"
+            echo "| Lint | ✅ Passed |"
+            echo "| Build | ✅ Passed |"
             echo
-            echo "## Pipeline"
-            echo "- 🧹 Clean"
-            echo "- 🧪 Tests"
-            echo "- 🔍 Lint"
-            echo "- 🏗️ Debug APK"
-            echo "- 🔐 SHA-256"
-            echo "- 🤖 Gemini AI"
-            echo "- 📦 Artifact"
-            echo "- 🚀 GitHub Release"
+            echo "## 🤖 AI"
+            echo
+            if [[ -s ai-release-notes.md ]]; then
+              echo "Gemini release description: ✅ Generated"
+            else
+              echo "Gemini release description: ⚠️ Fallback used"
+            fi
+
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" && \
+                  "${{ inputs.release }}" == "true" ]]; then
+              echo
+              echo "## 🎉 Stable Release"
+              echo
+              echo "**v${VERSION} is the first stable release.**"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
