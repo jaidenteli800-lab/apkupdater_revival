@@ -1,54 +1,121 @@
-name: Android Build
+name: APKUpdater Revival Android Build
 
 on:
   push:
+    branches:
+      - 3.x
+    tags:
+      - "v*.*.*"
+
   pull_request:
+    branches:
+      - 3.x
+
   workflow_dispatch:
+
+# Allow the workflow to create GitHub Releases
+permissions:
+  contents: write
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------------------------------
+      # Checkout
+      # ----------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # ----------------------------------------
+      # Java
+      # ----------------------------------------
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: zulu
+          java-version: "17"
 
+      # ----------------------------------------
+      # Decode signing keystore
+      # ----------------------------------------
       - name: Decode Keystore
         env:
           KEYSTORE: ${{ secrets.KEYSTORE }}
         run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "KEYSTORE secret is missing."
+            exit 1
+          fi
+
           echo "$KEYSTORE" | base64 --decode > ./app/ci.ks
 
+      # ----------------------------------------
+      # Decode Gradle properties
+      # ----------------------------------------
       - name: Decode Properties
         env:
           PROPERTIES: ${{ secrets.PROPERTIES }}
         run: |
+          if [ -z "$PROPERTIES" ]; then
+            echo "PROPERTIES secret is missing."
+            exit 1
+          fi
+
           echo "$PROPERTIES" | base64 --decode > local.properties
 
+      # ----------------------------------------
+      # Build
+      # ----------------------------------------
       - name: Build with Gradle
         env:
           BUILD_TAG: ".ci"
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           chmod +x ./gradlew
-          ./gradlew build
+          ./gradlew clean build
 
-      - name: Get current branch name
+      # ----------------------------------------
+      # Find APK
+      # ----------------------------------------
+      - name: Find Release APK
+        id: apk
         run: |
-          echo "BRANCH=$(git rev-parse --abbrev-ref HEAD)" >> "$GITHUB_ENV"
+          APK=$(find ./app/build/outputs/apk/release -type f -name "*.apk" | head -n 1)
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/3.x'
+          if [ -z "$APK" ]; then
+            echo "No release APK was found."
+            exit 1
+          fi
+
+          echo "Found APK: $APK"
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+
+      # ----------------------------------------
+      # Upload APK as workflow artifact
+      # ----------------------------------------
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: 0.0.${{ github.run_number }}-ci
-          name: CI-Release-${{ env.BRANCH }}-${{ github.run_number }}
-          files: ./app/build/outputs/apk/release/com.apkupdater.ci-release.apk
-          body: ${{ github.event.head_commit.message }}
-          prerelease: true
+          name: APKUpdater-Revival-${{ github.sha }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      # ----------------------------------------
+      # Create official GitHub Release
+      # Only happens when a vX.Y.Z tag is pushed
+      # ----------------------------------------
+      - name: Create Stable Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: APKUpdater Revival ${{ github.ref_name }}
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true
+          prerelease: false
+          draft: false
