@@ -1,4 +1,4 @@
-name: APKUpdater Revival Android Build
+name: APKUpdater Revival
 
 on:
   push:
@@ -13,7 +13,6 @@ on:
 
   workflow_dispatch:
 
-# Allow the workflow to create GitHub Releases
 permissions:
   contents: write
 
@@ -23,99 +22,224 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ----------------------------------------
-      # Checkout
-      # ----------------------------------------
-      - name: Checkout
-        uses: actions/checkout@v4
+
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      # ----------------------------------------
-      # Java
-      # ----------------------------------------
+
+      # ============================================================
+      # JAVA
+      # ============================================================
+
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: zulu
           java-version: "17"
+          cache: gradle
 
-      # ----------------------------------------
-      # Decode signing keystore
-      # ----------------------------------------
-      - name: Decode Keystore
-        env:
-          KEYSTORE: ${{ secrets.KEYSTORE }}
-        run: |
-          if [ -z "$KEYSTORE" ]; then
-            echo "KEYSTORE secret is missing."
-            exit 1
-          fi
 
-          echo "$KEYSTORE" | base64 --decode > ./app/ci.ks
+      # ============================================================
+      # GRADLE
+      # ============================================================
 
-      # ----------------------------------------
-      # Decode Gradle properties
-      # ----------------------------------------
-      - name: Decode Properties
-        env:
-          PROPERTIES: ${{ secrets.PROPERTIES }}
-        run: |
-          if [ -z "$PROPERTIES" ]; then
-            echo "PROPERTIES secret is missing."
-            exit 1
-          fi
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
 
-          echo "$PROPERTIES" | base64 --decode > local.properties
 
-      # ----------------------------------------
-      # Build
-      # ----------------------------------------
-      - name: Build with Gradle
-        env:
-          BUILD_TAG: ".ci"
-          BUILD_NUMBER: ${{ github.run_number }}
-        run: |
-          chmod +x ./gradlew
-          ./gradlew clean build
+      # ============================================================
+      # BUILD
+      #
+      # assembleDebug creates a debug-signed APK automatically.
+      # No keystore secret is required.
+      # ============================================================
 
-      # ----------------------------------------
-      # Find APK
-      # ----------------------------------------
-      - name: Find Release APK
+      - name: Build APK
+        run: ./gradlew clean assembleDebug
+
+
+      # ============================================================
+      # FIND APK
+      # ============================================================
+
+      - name: Find APK
         id: apk
+        shell: bash
         run: |
-          APK=$(find ./app/build/outputs/apk/release -type f -name "*.apk" | head -n 1)
+          APK=$(find app/build/outputs/apk/debug \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "No release APK was found."
+            echo "::error::No APK was produced."
             exit 1
           fi
 
-          echo "Found APK: $APK"
+          echo "Found APK:"
+          echo "$APK"
+
           echo "path=$APK" >> "$GITHUB_OUTPUT"
 
-      # ----------------------------------------
-      # Upload APK as workflow artifact
-      # ----------------------------------------
-      - name: Upload APK Artifact
+
+      # ============================================================
+      # CHANGE STATISTICS
+      # ============================================================
+
+      - name: Analyze changes
+        id: changes
+        shell: bash
+        run: |
+
+          echo "Analyzing repository changes..."
+
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            BASE="HEAD^"
+          else
+            BASE="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          git diff --stat "$BASE" HEAD > change-stat.txt || true
+
+          FILES=$(git diff --name-only "$BASE" HEAD | wc -l)
+          INSERTIONS=$(git diff --numstat "$BASE" HEAD \
+            | awk '{add += $1} END {print add+0}')
+
+          DELETIONS=$(git diff --numstat "$BASE" HEAD \
+            | awk '{del += $2} END {print del+0}')
+
+          TOTAL=$((INSERTIONS + DELETIONS))
+
+          echo "Files changed: $FILES"
+          echo "Lines added: $INSERTIONS"
+          echo "Lines removed: $DELETIONS"
+          echo "Total lines changed: $TOTAL"
+
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          echo "insertions=$INSERTIONS" >> "$GITHUB_OUTPUT"
+          echo "deletions=$DELETIONS" >> "$GITHUB_OUTPUT"
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+
+          git diff --name-status "$BASE" HEAD > changed-files.txt || true
+
+
+      # ============================================================
+      # GENERATE BIG RELEASE DESCRIPTION
+      #
+      # This doesn't require an AI API key.
+      # It builds a detailed description from the actual repository
+      # diff, commit messages, files, and change size.
+      # ============================================================
+
+      - name: Generate release description
+        id: notes
+        shell: bash
+        env:
+          FILES_CHANGED: ${{ steps.changes.outputs.files }}
+          LINES_ADDED: ${{ steps.changes.outputs.insertions }}
+          LINES_REMOVED: ${{ steps.changes.outputs.deletions }}
+          TOTAL_CHANGED: ${{ steps.changes.outputs.total }}
+        run: |
+
+          VERSION="${GITHUB_REF_NAME}"
+
+          if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            RELEASE_VERSION="$VERSION"
+          else
+            RELEASE_VERSION="v1.0.0"
+          fi
+
+          if [ "$TOTAL_CHANGED" -lt 20 ]; then
+            SIZE="Small update"
+          elif [ "$TOTAL_CHANGED" -lt 100 ]; then
+            SIZE="Moderate update"
+          elif [ "$TOTAL_CHANGED" -lt 500 ]; then
+            SIZE="Large update"
+          elif [ "$TOTAL_CHANGED" -lt 1500 ]; then
+            SIZE="Major update"
+          else
+            SIZE="Massive update"
+          fi
+
+          {
+            echo "# APKUpdater Revival $RELEASE_VERSION"
+            echo
+            echo "## 🚀 What's New"
+            echo
+            echo "**$SIZE** — this update changes **$FILES_CHANGED files** with **$LINES_ADDED lines added** and **$LINES_REMOVED lines removed**."
+            echo
+            echo "### 📊 Change Size"
+            echo
+            echo "| Metric | Amount |"
+            echo "|---|---:|"
+            echo "| Files changed | $FILES_CHANGED |"
+            echo "| Lines added | $LINES_ADDED |"
+            echo "| Lines removed | $LINES_REMOVED |"
+            echo "| Total lines changed | $TOTAL_CHANGED |"
+            echo
+            echo "### 📝 Commits"
+            echo
+            git log -10 --pretty=format:'- `%h` %s' HEAD
+            echo
+            echo
+            echo "### 📁 Changed Files"
+            echo
+            echo '```text'
+            cat changed-files.txt
+            echo '```'
+            echo
+            echo "### 🛠️ Build Information"
+            echo
+            echo "- **Project:** APKUpdater Revival"
+            echo "- **Branch:** ${GITHUB_REF_NAME}"
+            echo "- **Commit:** ${GITHUB_SHA}"
+            echo "- **Java:** 17"
+            echo "- **Build:** Gradle"
+            echo "- **APK:** Debug-signed Android APK"
+            echo
+            echo "---"
+            echo
+            echo "Built automatically by GitHub Actions."
+          } > release-notes.md
+
+          echo "Release notes generated:"
+          cat release-notes.md
+
+
+      # ============================================================
+      # UPLOAD APK ARTIFACT
+      # ============================================================
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: APKUpdater-Revival-${{ github.sha }}
+          name: APKUpdater-Revival-${{ github.run_number }}
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
 
-      # ----------------------------------------
-      # Create official GitHub Release
-      # Only happens when a vX.Y.Z tag is pushed
-      # ----------------------------------------
-      - name: Create Stable Release
+
+      # ============================================================
+      # OFFICIAL RELEASE
+      #
+      # Only runs when you push v1.0.0, v1.1.0, etc.
+      # ============================================================
+
+      - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: APKUpdater Revival ${{ github.ref_name }}
-          files: ${{ steps.apk.outputs.path }}
-          generate_release_notes: true
-          prerelease: false
+          body_path: release-notes.md
+          files: |
+            ${{ steps.apk.outputs.path }}
+            change-stat.txt
+            changed-files.txt
           draft: false
+          prerelease: false
