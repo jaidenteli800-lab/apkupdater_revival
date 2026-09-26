@@ -49,19 +49,14 @@ jobs:
       # VERSION
       # ============================================================
 
-      - name: 🔢 Calculate version
+      - name: 🔢 Set stable version
         id: version
         shell: bash
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            VERSION="${STABLE_VERSION}"
-            BUILD_TYPE="stable"
-          else
-            VERSION="${STABLE_VERSION}-ci.${GITHUB_RUN_NUMBER}"
-            BUILD_TYPE="ci"
-          fi
+          VERSION="${STABLE_VERSION}"
+          BUILD_TYPE="stable"
 
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "BUILD_TYPE=${BUILD_TYPE}" >> "$GITHUB_ENV"
@@ -240,11 +235,10 @@ jobs:
           echo "APK_SHA256=${APK_SHA256}" >> "$GITHUB_ENV"
 
       # ============================================================
-      # COLLECT CHANGE INFORMATION
+      # COLLECT RELEASE INFORMATION
       # ============================================================
 
       - name: 📋 Collect release information
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -281,7 +275,6 @@ jobs:
       # ============================================================
 
       - name: 🤖 Generate AI release notes
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -295,12 +288,6 @@ jobs:
           echo "=========================================="
           echo " AI RELEASE NOTES"
           echo "=========================================="
-
-          # ----------------------------------------------------------
-          # Always create a valid fallback first.
-          # This guarantees the release can continue even if Gemini
-          # is unavailable.
-          # ----------------------------------------------------------
 
           cat > final-release-notes.md <<EOF
           # APKUpdater ${VERSION}
@@ -316,19 +303,11 @@ jobs:
           This is the first stable release of APKUpdater.
           EOF
 
-          # ----------------------------------------------------------
-          # No Gemini secret = fallback, but NOT a failure.
-          # ----------------------------------------------------------
-
           if [[ -z "${GEMINI_API_KEY:-}" ]]; then
             echo "⚠️ GEMINI_API_KEY is not configured."
             echo "ℹ️ Using built-in release notes."
             exit 0
           fi
-
-          # ----------------------------------------------------------
-          # Create Gemini request using Python.
-          # ----------------------------------------------------------
 
           python3 - <<'PY'
           import json
@@ -360,7 +339,7 @@ jobs:
           - Never include file sizes.
           - Never invent features.
 
-          Use exactly this general structure:
+          Use this structure:
 
           # APKUpdater {version}
 
@@ -405,10 +384,6 @@ jobs:
               json.dump(payload, f)
           PY
 
-          # ----------------------------------------------------------
-          # Call Gemini.
-          # ----------------------------------------------------------
-
           HTTP_STATUS="$(curl \
             --silent \
             --show-error \
@@ -429,10 +404,6 @@ jobs:
             echo "ℹ️ Keeping built-in release notes."
             exit 0
           fi
-
-          # ----------------------------------------------------------
-          # Extract Gemini response.
-          # ----------------------------------------------------------
 
           python3 - <<'PY'
           import json
@@ -468,11 +439,6 @@ jobs:
               sys.exit(1)
           PY
 
-          # ----------------------------------------------------------
-          # Use Gemini output only when it is actually valid.
-          # Otherwise keep fallback.
-          # ----------------------------------------------------------
-
           if [[ -s "ai-release-notes.md" ]]; then
             cp ai-release-notes.md final-release-notes.md
             echo "✅ Gemini release notes successfully generated."
@@ -488,17 +454,11 @@ jobs:
 
           cat final-release-notes.md
 
-          echo ""
-          echo "=========================================="
-          echo " Release notes step completed successfully."
-          echo "=========================================="
-
       # ============================================================
       # VERIFY RELEASE NOTES
       # ============================================================
 
       - name: 📝 Verify release notes
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -514,11 +474,9 @@ jobs:
           fi
 
           echo "✅ Release notes are ready."
-          echo ""
-          cat final-release-notes.md
 
       # ============================================================
-      # UPLOAD ONLY THE APK
+      # UPLOAD ONLY APK
       # ============================================================
 
       - name: 📦 Upload APK artifact
@@ -530,11 +488,11 @@ jobs:
           archive: false
 
       # ============================================================
-      # CREATE FIRST STABLE RELEASE
+      # CREATE STABLE RELEASE
       # ============================================================
 
       - name: 🚀 Create stable GitHub release
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ success() }}
         uses: softprops/action-gh-release@v3
         with:
           token: ${{ github.token }}
@@ -584,19 +542,10 @@ jobs:
               echo "APK was not produced."
             fi
 
-            if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-              echo ""
-              echo "## Stable Release"
-              echo ""
-              echo "✅ Release: \`v${STABLE_VERSION}\`"
-              echo ""
-              echo "📦 GitHub Release contains only the APK."
-            else
-              echo ""
-              echo "## CI"
-              echo ""
-              echo "✅ CI build completed."
-              echo ""
-              echo "ℹ️ No stable release was created."
-            fi
+            echo ""
+            echo "## Stable Release"
+            echo ""
+            echo "✅ Release: \`v${STABLE_VERSION}\`"
+            echo ""
+            echo "📦 GitHub Release contains only the APK."
           } >> "$GITHUB_STEP_SUMMARY"
