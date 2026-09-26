@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (example: 1.0.0)"
+        description: "Version number (example: 1.1.0)"
         required: true
         type: string
 
@@ -17,7 +17,7 @@ on:
           - Pre-release
 
       release_notes:
-        description: "Release notes - write exactly what you want included"
+        description: "Write exactly what you want included in the release notes"
         required: true
         type: string
 
@@ -34,7 +34,7 @@ env:
 
 jobs:
   build:
-    name: 🏗️ Build APKUpdater Revival
+    name: Build APKUpdater Revival
     runs-on: ubuntu-24.04
 
     steps:
@@ -43,7 +43,7 @@ jobs:
       # CHECKOUT
       # ==========================================
 
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -52,7 +52,7 @@ jobs:
       # JAVA
       # ==========================================
 
-      - name: ☕ Setup Java
+      - name: Setup Java
         uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -60,10 +60,10 @@ jobs:
           cache: gradle
 
       # ==========================================
-      # VERSION / RELEASE INFORMATION
+      # SET RELEASE INFORMATION
       # ==========================================
 
-      - name: 🔢 Set release information
+      - name: Set release information
         shell: bash
         run: |
           set -euo pipefail
@@ -88,6 +88,7 @@ jobs:
           echo "=========================================="
           echo "Version:      ${VERSION}"
           echo "Release type: ${TYPE_NAME}"
+          echo "Run number:   ${GITHUB_RUN_NUMBER}"
           echo "Branch:       ${GITHUB_REF_NAME}"
           echo "Commit:       ${GITHUB_SHA}"
           echo "=========================================="
@@ -96,14 +97,10 @@ jobs:
       # PROJECT INFORMATION
       # ==========================================
 
-      - name: 🔍 Analyze project
+      - name: Analyze project
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "=========================================="
-          echo " APKUpdater Revival Project"
-          echo "=========================================="
 
           echo "Repository: ${GITHUB_REPOSITORY}"
           echo "Branch:     ${GITHUB_REF_NAME}"
@@ -121,12 +118,12 @@ jobs:
       # GRADLE
       # ==========================================
 
-      - name: 🔧 Make Gradle executable
+      - name: Make Gradle executable
         shell: bash
         run: |
           chmod +x ./gradlew
 
-      - name: 🧹 Clean project
+      - name: Clean project
         shell: bash
         run: |
           ./gradlew clean \
@@ -137,7 +134,7 @@ jobs:
       # TESTS
       # ==========================================
 
-      - name: 🧪 Run tests
+      - name: Run tests
         shell: bash
         run: |
           ./gradlew test \
@@ -148,7 +145,7 @@ jobs:
       # LINT
       # ==========================================
 
-      - name: 🔍 Run Android lint
+      - name: Run Android lint
         shell: bash
         run: |
           ./gradlew lint \
@@ -156,10 +153,10 @@ jobs:
             --stacktrace
 
       # ==========================================
-      # BUILD
+      # BUILD APK
       # ==========================================
 
-      - name: 🏗️ Build APK
+      - name: Build APK
         shell: bash
         run: |
           set -euo pipefail
@@ -169,11 +166,10 @@ jobs:
             --stacktrace
 
       # ==========================================
-      # LOCATE APK
+      # FIND APK
       # ==========================================
 
-      - name: 🔎 Locate APK
-        id: apk
+      - name: Locate APK
         shell: bash
         run: |
           set -euo pipefail
@@ -223,7 +219,7 @@ jobs:
       # VERIFY APK
       # ==========================================
 
-      - name: ✅ Verify APK
+      - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
@@ -253,10 +249,10 @@ jobs:
           echo "APK_SHA256=${APK_SHA256}" >> "$GITHUB_ENV"
 
       # ==========================================
-      # CREATE YOUR RELEASE NOTES
+      # RELEASE NOTES
       # ==========================================
 
-      - name: 📝 Create release notes
+      - name: Create release notes
         shell: bash
         run: |
           set -euo pipefail
@@ -280,30 +276,30 @@ jobs:
       # UPLOAD ARTIFACT
       # ==========================================
 
-      - name: 📦 Upload APK artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: APKUpdater-Revival-${{ inputs.version }}-${{ github.run_number }}
+          name: APKUpdater-Revival-${{ inputs.version }}-run-${{ github.run_number }}
           path: ${{ env.APK_PATH }}
           if-no-files-found: error
           archive: false
 
       # ==========================================
-      # CREATE NEW GITHUB RELEASE
+      # CREATE UNIQUE RELEASE
       # ==========================================
 
-      - name: 🚀 Create GitHub release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
           token: ${{ github.token }}
 
-          # IMPORTANT:
-          # Run number makes every release unique.
-          # Therefore running 1.0.0 twice creates two releases
-          # instead of replacing the first one.
-          tag_name: v${{ inputs.version }}-${{ github.run_number }}
+          # The RELEASE NAME is CLEAN.
+          # The run number is NOT shown here.
+          name: APKUpdater Revival ${{ inputs.version }}
 
-          name: APKUpdater Revival ${{ inputs.version }} (${{ github.run_number }})
+          # The TAG is unique so another build of the
+          # same version creates a completely new release.
+          tag_name: v${{ inputs.version }}-build-${{ github.run_number }}
 
           body_path: final-release-notes.md
 
@@ -319,24 +315,25 @@ jobs:
             ${{ env.APK_PATH }}
 
       # ==========================================
-      # SUMMARY
+      # FINAL SUMMARY
       # ==========================================
 
-      - name: 📊 Final build summary
+      - name: Build summary
         if: always()
         shell: bash
         run: |
           {
-            echo "# 🚀 APKUpdater Revival Build"
+            echo "# APKUpdater Revival Build"
             echo ""
-            echo "## Build"
+            echo "## Release"
             echo ""
             echo "| Property | Value |"
             echo "|---|---|"
             echo "| App | \`APKUpdater Revival\` |"
             echo "| Version | \`${VERSION}\` |"
-            echo "| Release type | \`${RELEASE_TYPE}\` |"
+            echo "| Type | \`${RELEASE_TYPE}\` |"
             echo "| Run | \`${GITHUB_RUN_NUMBER}\` |"
+            echo "| Tag | \`v${VERSION}-build-${GITHUB_RUN_NUMBER}\` |"
             echo "| Branch | \`${GITHUB_REF_NAME}\` |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
             echo ""
@@ -350,13 +347,6 @@ jobs:
               echo "| Size | \`${APK_SIZE:-unknown}\` bytes |"
               echo "| SHA-256 | \`${APK_SHA256:-unknown}\` |"
             else
-              echo "## APK"
-              echo ""
               echo "APK was not produced."
             fi
-
-            echo ""
-            echo "## Release"
-            echo ""
-            echo "Tag: \`v${VERSION}-${GITHUB_RUN_NUMBER}\`"
           } >> "$GITHUB_STEP_SUMMARY"
