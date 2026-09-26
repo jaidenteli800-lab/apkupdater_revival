@@ -1,4 +1,4 @@
-name: 🔬 APKUpdater Revival - Upstream Comparison
+name: APKUpdater Revival - Comparison to Original Repo
 
 on:
   workflow_dispatch:
