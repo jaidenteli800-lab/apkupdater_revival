@@ -11,32 +11,25 @@ permissions:
   contents: write
 
 concurrency:
-  group: apkupdater-build-${{ github.ref }}
+  group: apkupdater-revival-build-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   JAVA_VERSION: "17"
   STABLE_VERSION: "1.0.0"
+  APP_NAME: "APKUpdater Revival"
 
 jobs:
   build:
-    name: 🏗️ Build APKUpdater
+    name: 🏗️ Build APKUpdater Revival
     runs-on: ubuntu-24.04
 
     steps:
-
-      # ============================================================
-      # CHECKOUT
-      # ============================================================
 
       - name: 📥 Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      # ============================================================
-      # JAVA
-      # ============================================================
 
       - name: ☕ Setup Java
         uses: actions/setup-java@v6
@@ -45,12 +38,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      # ============================================================
-      # VERSION
-      # ============================================================
-
       - name: 🔢 Set stable version
-        id: version
         shell: bash
         run: |
           set -euo pipefail
@@ -62,7 +50,7 @@ jobs:
           echo "BUILD_TYPE=${BUILD_TYPE}" >> "$GITHUB_ENV"
 
           echo "=========================================="
-          echo " APKUpdater Build"
+          echo " APKUpdater Revival"
           echo "=========================================="
           echo "Version: ${VERSION}"
           echo "Type:    ${BUILD_TYPE}"
@@ -70,17 +58,13 @@ jobs:
           echo "Commit:  ${GITHUB_SHA}"
           echo "=========================================="
 
-      # ============================================================
-      # PROJECT INFO
-      # ============================================================
-
       - name: 🧠 Analyze project
         shell: bash
         run: |
           set -euo pipefail
 
           echo "=========================================="
-          echo " Project Information"
+          echo " APKUpdater Revival Project"
           echo "=========================================="
 
           echo "Repository: ${GITHUB_REPOSITORY}"
@@ -95,18 +79,10 @@ jobs:
           echo "Gradle:"
           ./gradlew --version
 
-      # ============================================================
-      # GRADLE
-      # ============================================================
-
       - name: 🔧 Make Gradle executable
         shell: bash
         run: |
           chmod +x ./gradlew
-
-      # ============================================================
-      # CLEAN
-      # ============================================================
 
       - name: 🧹 Clean project
         shell: bash
@@ -115,10 +91,6 @@ jobs:
             --no-daemon \
             --stacktrace
 
-      # ============================================================
-      # TESTS
-      # ============================================================
-
       - name: 🧪 Run tests
         shell: bash
         run: |
@@ -126,20 +98,12 @@ jobs:
             --no-daemon \
             --stacktrace
 
-      # ============================================================
-      # LINT
-      # ============================================================
-
       - name: 🔍 Run Android lint
         shell: bash
         run: |
           ./gradlew lint \
             --no-daemon \
             --stacktrace
-
-      # ============================================================
-      # BUILD
-      # ============================================================
 
       - name: 🏗️ Build APK
         shell: bash
@@ -149,10 +113,6 @@ jobs:
           ./gradlew assembleDebug \
             --no-daemon \
             --stacktrace
-
-      # ============================================================
-      # FIND APK
-      # ============================================================
 
       - name: 🔎 Locate APK
         id: apk
@@ -181,7 +141,7 @@ jobs:
 
           mkdir -p release
 
-          FINAL_APK="release/APKUpdater-${VERSION}.apk"
+          FINAL_APK="release/APKUpdater-Revival-${VERSION}.apk"
 
           cp "${APK_SOURCE}" "${FINAL_APK}"
 
@@ -200,10 +160,6 @@ jobs:
           echo ""
           echo "Final APK:"
           echo "${FINAL_APK}"
-
-      # ============================================================
-      # VERIFY APK
-      # ============================================================
 
       - name: ✅ Verify APK
         shell: bash
@@ -233,10 +189,6 @@ jobs:
 
           echo "APK_SIZE=${APK_SIZE}" >> "$GITHUB_ENV"
           echo "APK_SHA256=${APK_SHA256}" >> "$GITHUB_ENV"
-
-      # ============================================================
-      # COLLECT RELEASE INFORMATION
-      # ============================================================
 
       - name: 📋 Collect release information
         shell: bash
@@ -270,18 +222,12 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-      # ============================================================
-      # AI RELEASE NOTES
-      # ============================================================
-
       - name: 🤖 Generate AI release notes
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VERSION: ${{ env.VERSION }}
-          COMMIT_MESSAGE: ${{ env.COMMIT_MESSAGE }}
-          COMMIT_BODY: ${{ env.COMMIT_BODY }}
-          CHANGES: ${{ env.CHANGES }}
+          APP_NAME: ${{ env.APP_NAME }}
         run: |
           set -u
 
@@ -290,22 +236,22 @@ jobs:
           echo "=========================================="
 
           cat > final-release-notes.md <<EOF
-          # APKUpdater ${VERSION}
+          # APKUpdater Revival ${VERSION}
 
           ## What's included
 
-          - First stable release of APKUpdater.
-          - Automated Android build verified with project tests and lint.
-          - Release APK prepared automatically from the ${GITHUB_REF_NAME} branch.
+          - First stable release of APKUpdater Revival.
+          - Stable version 1.0.0.
+          - Official APKUpdater Revival release package.
 
           ## Release
 
-          This is the first stable release of APKUpdater.
+          This is the first stable release of APKUpdater Revival.
           EOF
 
           if [[ -z "${GEMINI_API_KEY:-}" ]]; then
             echo "⚠️ GEMINI_API_KEY is not configured."
-            echo "ℹ️ Using built-in release notes."
+            echo "ℹ️ Using clean built-in release notes."
             exit 0
           fi
 
@@ -314,52 +260,46 @@ jobs:
           import os
 
           version = os.environ.get("VERSION", "1.0.0")
-          commit_message = os.environ.get("COMMIT_MESSAGE", "")
-          commit_body = os.environ.get("COMMIT_BODY", "")
-          changes = os.environ.get("CHANGES", "")
+          app_name = os.environ.get("APP_NAME", "APKUpdater Revival")
 
-          prompt = f"""Write polished GitHub release notes for APKUpdater version {version}.
+          prompt = f"""Write clean, concise GitHub release notes for:
+
+          {app_name} version {version}
 
           This is the FIRST REAL STABLE RELEASE.
 
           IMPORTANT:
-          - Never describe the app as debug.
-          - Never say debug APK.
-          - Never say testing build.
-          - Never say development build.
-          - Never say prerelease.
-          - Never say beta.
-          - Never say alpha.
-          - Never say nightly.
+          - The app name is exactly "APKUpdater Revival".
+          - Never call it "APKUpdater" by itself.
+          - Never mention debug.
+          - Never mention CI.
           - Never mention GitHub Actions.
           - Never mention Gemini.
-          - Never mention CI.
-          - Never mention internal automation.
-          - Never include hashes.
-          - Never include file sizes.
+          - Never mention automation.
+          - Never mention build configuration.
+          - Never mention internal workflow changes.
+          - Never mention prerelease.
+          - Never mention beta.
+          - Never mention alpha.
           - Never invent features.
+          - Keep the notes short and user-facing.
+          - Do not include download instructions.
+          - Do not include hashes.
+          - Do not include file sizes.
 
-          Use this structure:
+          Use exactly this structure:
 
-          # APKUpdater {version}
+          # APKUpdater Revival {version}
 
           ## What's included
 
-          - 3 to 6 concise bullets describing real changes.
-          - Only describe things supported by the supplied information.
+          - First stable release of APKUpdater Revival.
+          - Stable version 1.0.0.
+          - Official APKUpdater Revival release package.
 
           ## Release
 
-          This is the first stable release of APKUpdater.
-
-          Latest commit:
-          {commit_message}
-
-          Commit details:
-          {commit_body}
-
-          Changed files:
-          {changes}
+          This is the first stable release of APKUpdater Revival.
           """
 
           payload = {
@@ -376,7 +316,7 @@ jobs:
                   "thinkingConfig": {
                       "thinkingLevel": "low"
                   },
-                  "maxOutputTokens": 2000
+                  "maxOutputTokens": 1000
               }
           }
 
@@ -400,14 +340,13 @@ jobs:
           echo "Gemini HTTP status: ${HTTP_STATUS}"
 
           if [[ "${HTTP_STATUS}" != "200" ]]; then
-            echo "⚠️ Gemini did not return HTTP 200."
-            echo "ℹ️ Keeping built-in release notes."
+            echo "⚠️ Gemini unavailable."
+            echo "ℹ️ Keeping clean built-in release notes."
             exit 0
           fi
 
           python3 - <<'PY'
           import json
-          import sys
 
           try:
               with open("gemini-response.json", "r", encoding="utf-8") as f:
@@ -429,22 +368,32 @@ jobs:
               generated = generated.strip()
 
               if not generated:
-                  raise ValueError("Gemini returned empty text")
+                  raise ValueError("Empty response")
+
+              # Safety cleanup in case the model ignores the naming instructions.
+              generated = generated.replace(
+                  "# APKUpdater ",
+                  "# APKUpdater Revival "
+              )
+
+              generated = generated.replace(
+                  "This is the first stable release of APKUpdater.",
+                  "This is the first stable release of APKUpdater Revival."
+              )
 
               with open("ai-release-notes.md", "w", encoding="utf-8") as f:
                   f.write(generated)
 
           except Exception as error:
               print(f"Gemini response parsing failed: {error}")
-              sys.exit(1)
           PY
 
           if [[ -s "ai-release-notes.md" ]]; then
             cp ai-release-notes.md final-release-notes.md
-            echo "✅ Gemini release notes successfully generated."
+            echo "✅ Clean AI release notes generated."
           else
-            echo "⚠️ Gemini output was empty."
-            echo "ℹ️ Using built-in release notes."
+            echo "⚠️ AI output was empty or invalid."
+            echo "ℹ️ Using clean built-in release notes."
           fi
 
           echo ""
@@ -453,10 +402,6 @@ jobs:
           echo "=========================================="
 
           cat final-release-notes.md
-
-      # ============================================================
-      # VERIFY RELEASE NOTES
-      # ============================================================
 
       - name: 📝 Verify release notes
         shell: bash
@@ -475,21 +420,13 @@ jobs:
 
           echo "✅ Release notes are ready."
 
-      # ============================================================
-      # UPLOAD ONLY APK
-      # ============================================================
-
       - name: 📦 Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: APKUpdater-${{ env.VERSION }}
+          name: APKUpdater-Revival-${{ env.VERSION }}
           path: ${{ env.APK_PATH }}
           if-no-files-found: error
           archive: false
-
-      # ============================================================
-      # CREATE STABLE RELEASE
-      # ============================================================
 
       - name: 🚀 Create stable GitHub release
         if: ${{ success() }}
@@ -497,7 +434,7 @@ jobs:
         with:
           token: ${{ github.token }}
           tag_name: v${{ env.STABLE_VERSION }}
-          name: APKUpdater ${{ env.STABLE_VERSION }}
+          name: APKUpdater Revival ${{ env.STABLE_VERSION }}
           body_path: final-release-notes.md
           draft: false
           prerelease: false
@@ -506,26 +443,22 @@ jobs:
           files: |
             ${{ env.APK_PATH }}
 
-      # ============================================================
-      # FINAL SUMMARY
-      # ============================================================
-
       - name: 📊 Final build summary
         if: always()
         shell: bash
         run: |
           {
-            echo "# 🚀 APKUpdater Build"
+            echo "# 🚀 APKUpdater Revival Build"
             echo ""
             echo "## Build"
             echo ""
             echo "| Property | Value |"
             echo "|---|---|"
+            echo "| App | \`APKUpdater Revival\` |"
             echo "| Version | \`${VERSION}\` |"
             echo "| Type | \`${BUILD_TYPE}\` |"
             echo "| Branch | \`${GITHUB_REF_NAME}\` |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
-            echo "| Java | \`${JAVA_VERSION}\` |"
             echo ""
 
             if [[ -f "${APK_PATH:-}" ]]; then
