@@ -1,22 +1,35 @@
 name: APKUpdater Revival - Build & Release
 
 on:
-  push:
-    branches:
-      - 3.x
-
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (example: 1.0.0)"
+        required: true
+        type: string
+
+      release_type:
+        description: "Release type"
+        required: true
+        type: choice
+        options:
+          - Stable Release
+          - Pre-release
+
+      release_notes:
+        description: "Release notes - write exactly what you want included"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
   group: apkupdater-revival-build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   JAVA_VERSION: "17"
-  STABLE_VERSION: "1.0.0"
   APP_NAME: "APKUpdater Revival"
 
 jobs:
@@ -26,10 +39,18 @@ jobs:
 
     steps:
 
+      # ==========================================
+      # CHECKOUT
+      # ==========================================
+
       - name: 📥 Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      # ==========================================
+      # JAVA
+      # ==========================================
 
       - name: ☕ Setup Java
         uses: actions/setup-java@v6
@@ -38,27 +59,44 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: 🔢 Set stable version
+      # ==========================================
+      # VERSION / RELEASE INFORMATION
+      # ==========================================
+
+      - name: 🔢 Set release information
         shell: bash
         run: |
           set -euo pipefail
 
-          VERSION="${STABLE_VERSION}"
-          BUILD_TYPE="stable"
+          VERSION="${{ inputs.version }}"
+          RELEASE_TYPE="${{ inputs.release_type }}"
+
+          if [[ "${RELEASE_TYPE}" == "Stable Release" ]]; then
+            PRERELEASE="false"
+            TYPE_NAME="stable"
+          else
+            PRERELEASE="true"
+            TYPE_NAME="pre-release"
+          fi
 
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          echo "BUILD_TYPE=${BUILD_TYPE}" >> "$GITHUB_ENV"
+          echo "RELEASE_TYPE=${TYPE_NAME}" >> "$GITHUB_ENV"
+          echo "PRERELEASE=${PRERELEASE}" >> "$GITHUB_ENV"
 
           echo "=========================================="
           echo " APKUpdater Revival"
           echo "=========================================="
-          echo "Version: ${VERSION}"
-          echo "Type:    ${BUILD_TYPE}"
-          echo "Branch:  ${GITHUB_REF_NAME}"
-          echo "Commit:  ${GITHUB_SHA}"
+          echo "Version:      ${VERSION}"
+          echo "Release type: ${TYPE_NAME}"
+          echo "Branch:       ${GITHUB_REF_NAME}"
+          echo "Commit:       ${GITHUB_SHA}"
           echo "=========================================="
 
-      - name: 🧠 Analyze project
+      # ==========================================
+      # PROJECT INFORMATION
+      # ==========================================
+
+      - name: 🔍 Analyze project
         shell: bash
         run: |
           set -euo pipefail
@@ -79,6 +117,10 @@ jobs:
           echo "Gradle:"
           ./gradlew --version
 
+      # ==========================================
+      # GRADLE
+      # ==========================================
+
       - name: 🔧 Make Gradle executable
         shell: bash
         run: |
@@ -91,6 +133,10 @@ jobs:
             --no-daemon \
             --stacktrace
 
+      # ==========================================
+      # TESTS
+      # ==========================================
+
       - name: 🧪 Run tests
         shell: bash
         run: |
@@ -98,12 +144,20 @@ jobs:
             --no-daemon \
             --stacktrace
 
+      # ==========================================
+      # LINT
+      # ==========================================
+
       - name: 🔍 Run Android lint
         shell: bash
         run: |
           ./gradlew lint \
             --no-daemon \
             --stacktrace
+
+      # ==========================================
+      # BUILD
+      # ==========================================
 
       - name: 🏗️ Build APK
         shell: bash
@@ -113,6 +167,10 @@ jobs:
           ./gradlew assembleDebug \
             --no-daemon \
             --stacktrace
+
+      # ==========================================
+      # LOCATE APK
+      # ==========================================
 
       - name: 🔎 Locate APK
         id: apk
@@ -161,6 +219,10 @@ jobs:
           echo "Final APK:"
           echo "${FINAL_APK}"
 
+      # ==========================================
+      # VERIFY APK
+      # ==========================================
+
       - name: ✅ Verify APK
         shell: bash
         run: |
@@ -190,258 +252,75 @@ jobs:
           echo "APK_SIZE=${APK_SIZE}" >> "$GITHUB_ENV"
           echo "APK_SHA256=${APK_SHA256}" >> "$GITHUB_ENV"
 
-      - name: 📋 Collect release information
+      # ==========================================
+      # CREATE YOUR RELEASE NOTES
+      # ==========================================
+
+      - name: 📝 Create release notes
         shell: bash
         run: |
           set -euo pipefail
 
-          COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
-          COMMIT_BODY="$(git log -1 --pretty=%b)"
-
-          CHANGES="$(git diff-tree \
-            --no-commit-id \
-            --name-status \
-            -r \
-            HEAD || true)"
-
-          if [[ -z "${CHANGES}" ]]; then
-            CHANGES="No file-level changes were detected for this commit."
-          fi
-
-          {
-            echo "COMMIT_MESSAGE<<EOF"
-            echo "${COMMIT_MESSAGE}"
-            echo "EOF"
-
-            echo "COMMIT_BODY<<EOF"
-            echo "${COMMIT_BODY}"
-            echo "EOF"
-
-            echo "CHANGES<<EOF"
-            echo "${CHANGES}"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
-
-      - name: 🤖 Generate AI release notes
-        shell: bash
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VERSION: ${{ env.VERSION }}
-          APP_NAME: ${{ env.APP_NAME }}
-        run: |
-          set -u
-
-          echo "=========================================="
-          echo " AI RELEASE NOTES"
-          echo "=========================================="
-
-          cat > final-release-notes.md <<EOF
-          # APKUpdater Revival ${VERSION}
-
-          ## What's included
-
-          - First stable release of APKUpdater Revival.
-          - Stable version 1.0.0.
-          - Official APKUpdater Revival release package.
-
-          ## Release
-
-          This is the first stable release of APKUpdater Revival.
+          cat > final-release-notes.md <<'EOF'
+          ${{ inputs.release_notes }}
           EOF
 
-          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-            echo "⚠️ GEMINI_API_KEY is not configured."
-            echo "ℹ️ Using clean built-in release notes."
-            exit 0
+          if [[ ! -s "final-release-notes.md" ]]; then
+            echo "❌ Release notes are empty."
+            exit 1
           fi
 
-          python3 - <<'PY'
-          import json
-          import os
-
-          version = os.environ.get("VERSION", "1.0.0")
-          app_name = os.environ.get("APP_NAME", "APKUpdater Revival")
-
-          prompt = f"""Write clean, concise GitHub release notes for:
-
-          {app_name} version {version}
-
-          This is the FIRST REAL STABLE RELEASE.
-
-          IMPORTANT:
-          - The app name is exactly "APKUpdater Revival".
-          - Never call it "APKUpdater" by itself.
-          - Never mention debug.
-          - Never mention CI.
-          - Never mention GitHub Actions.
-          - Never mention Gemini.
-          - Never mention automation.
-          - Never mention build configuration.
-          - Never mention internal workflow changes.
-          - Never mention prerelease.
-          - Never mention beta.
-          - Never mention alpha.
-          - Never invent features.
-          - Keep the notes short and user-facing.
-          - Do not include download instructions.
-          - Do not include hashes.
-          - Do not include file sizes.
-
-          Use exactly this structure:
-
-          # APKUpdater Revival {version}
-
-          ## What's included
-
-          - First stable release of APKUpdater Revival.
-          - Stable version 1.0.0.
-          - Official APKUpdater Revival release package.
-
-          ## Release
-
-          This is the first stable release of APKUpdater Revival.
-          """
-
-          payload = {
-              "contents": [
-                  {
-                      "parts": [
-                          {
-                              "text": prompt
-                          }
-                      ]
-                  }
-              ],
-              "generationConfig": {
-                  "thinkingConfig": {
-                      "thinkingLevel": "low"
-                  },
-                  "maxOutputTokens": 1000
-              }
-          }
-
-          with open("gemini-request.json", "w", encoding="utf-8") as f:
-              json.dump(payload, f)
-          PY
-
-          HTTP_STATUS="$(curl \
-            --silent \
-            --show-error \
-            --location \
-            --request POST \
-            --header "Content-Type: application/json" \
-            --header "x-goog-api-key: ${GEMINI_API_KEY}" \
-            --output gemini-response.json \
-            --write-out "%{http_code}" \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent" \
-            --data-binary @gemini-request.json \
-            || true)"
-
-          echo "Gemini HTTP status: ${HTTP_STATUS}"
-
-          if [[ "${HTTP_STATUS}" != "200" ]]; then
-            echo "⚠️ Gemini unavailable."
-            echo "ℹ️ Keeping clean built-in release notes."
-            exit 0
-          fi
-
-          python3 - <<'PY'
-          import json
-
-          try:
-              with open("gemini-response.json", "r", encoding="utf-8") as f:
-                  data = json.load(f)
-
-              candidates = data.get("candidates", [])
-
-              if not candidates:
-                  raise ValueError("No candidates returned")
-
-              parts = candidates[0].get("content", {}).get("parts", [])
-
-              generated = ""
-
-              for part in parts:
-                  if isinstance(part, dict) and part.get("text"):
-                      generated += part["text"]
-
-              generated = generated.strip()
-
-              if not generated:
-                  raise ValueError("Empty response")
-
-              # Safety cleanup in case the model ignores the naming instructions.
-              generated = generated.replace(
-                  "# APKUpdater ",
-                  "# APKUpdater Revival "
-              )
-
-              generated = generated.replace(
-                  "This is the first stable release of APKUpdater.",
-                  "This is the first stable release of APKUpdater Revival."
-              )
-
-              with open("ai-release-notes.md", "w", encoding="utf-8") as f:
-                  f.write(generated)
-
-          except Exception as error:
-              print(f"Gemini response parsing failed: {error}")
-          PY
-
-          if [[ -s "ai-release-notes.md" ]]; then
-            cp ai-release-notes.md final-release-notes.md
-            echo "✅ Clean AI release notes generated."
-          else
-            echo "⚠️ AI output was empty or invalid."
-            echo "ℹ️ Using clean built-in release notes."
-          fi
-
-          echo ""
           echo "=========================================="
-          echo " FINAL RELEASE NOTES"
+          echo " RELEASE NOTES"
           echo "=========================================="
 
           cat final-release-notes.md
 
-      - name: 📝 Verify release notes
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ ! -f "final-release-notes.md" ]]; then
-            echo "❌ Release notes file does not exist."
-            exit 1
-          fi
-
-          if [[ ! -s "final-release-notes.md" ]]; then
-            echo "❌ Release notes file is empty."
-            exit 1
-          fi
-
-          echo "✅ Release notes are ready."
+      # ==========================================
+      # UPLOAD ARTIFACT
+      # ==========================================
 
       - name: 📦 Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: APKUpdater-Revival-${{ env.VERSION }}
+          name: APKUpdater-Revival-${{ inputs.version }}-${{ github.run_number }}
           path: ${{ env.APK_PATH }}
           if-no-files-found: error
           archive: false
 
-      - name: 🚀 Create stable GitHub release
-        if: ${{ success() }}
+      # ==========================================
+      # CREATE NEW GITHUB RELEASE
+      # ==========================================
+
+      - name: 🚀 Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
           token: ${{ github.token }}
-          tag_name: v${{ env.STABLE_VERSION }}
-          name: APKUpdater Revival ${{ env.STABLE_VERSION }}
+
+          # IMPORTANT:
+          # Run number makes every release unique.
+          # Therefore running 1.0.0 twice creates two releases
+          # instead of replacing the first one.
+          tag_name: v${{ inputs.version }}-${{ github.run_number }}
+
+          name: APKUpdater Revival ${{ inputs.version }} (${{ github.run_number }})
+
           body_path: final-release-notes.md
+
           draft: false
-          prerelease: false
-          make_latest: true
+
+          prerelease: ${{ env.PRERELEASE }}
+
+          make_latest: ${{ env.RELEASE_TYPE == 'stable' }}
+
           target_commitish: ${{ github.sha }}
+
           files: |
             ${{ env.APK_PATH }}
+
+      # ==========================================
+      # SUMMARY
+      # ==========================================
 
       - name: 📊 Final build summary
         if: always()
@@ -456,7 +335,8 @@ jobs:
             echo "|---|---|"
             echo "| App | \`APKUpdater Revival\` |"
             echo "| Version | \`${VERSION}\` |"
-            echo "| Type | \`${BUILD_TYPE}\` |"
+            echo "| Release type | \`${RELEASE_TYPE}\` |"
+            echo "| Run | \`${GITHUB_RUN_NUMBER}\` |"
             echo "| Branch | \`${GITHUB_REF_NAME}\` |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
             echo ""
@@ -476,9 +356,7 @@ jobs:
             fi
 
             echo ""
-            echo "## Stable Release"
+            echo "## Release"
             echo ""
-            echo "✅ Release: \`v${STABLE_VERSION}\`"
-            echo ""
-            echo "📦 GitHub Release contains only the APK."
+            echo "Tag: \`v${VERSION}-${GITHUB_RUN_NUMBER}\`"
           } >> "$GITHUB_STEP_SUMMARY"
