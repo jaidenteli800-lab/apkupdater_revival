@@ -22,7 +22,7 @@ The 3.x branch is a full rewrite using modern technologies like **Jetpack Compos
 * No ads. No tracking.
 * **Languages**: Albanian, Arabic, Burmese, Dutch, English, German, Hebrew, Hungarian, Indonesian, Italian, Korean, Malay, Portuguese, Romanian, Russian, Simplified Chinese, Spanish, Traditional Chinese, Turkish.
 # Translations
-If you want to help with translations, open a [Pull Request](https://github.com/rumboalla/apkupdater/pulls) or an [Issue](https://github.com/rumboalla/apkupdater/issues) with the translated [strings.xml](https://github.com/rumboalla/apkupdater/blob/3.x/app/src/main/res/values/strings.xml).
+If you want to help with translations, open a [Pull Request](https://github.com/jaidenteli80/apkupdater_revival/pulls) or an [Issue](https://github.com/jaidenteli80/apkupdater_revival/issues) with the translated [strings.xml](https://github.com/jaidenteli80/apkupdater_revival/blob/3.x/app/src/main/res/values/strings.xml).
 
 * Albanian by [Jvr2022](https://github.com/Jvr2022)
 * Arabic by [Muhammadbahaa2001](https://github.com/Muhammadbahaa2001)
