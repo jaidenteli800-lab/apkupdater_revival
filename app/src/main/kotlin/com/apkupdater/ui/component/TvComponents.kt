@@ -15,29 +15,23 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
 import com.apkupdater.R
 import com.apkupdater.data.ui.ApkMirrorSource
 import com.apkupdater.data.ui.ApkPureSource
 import com.apkupdater.data.ui.AppInstalled
 import com.apkupdater.data.ui.AppUpdate
-import com.apkupdater.data.ui.Link
 import com.apkupdater.data.ui.Source
 import com.apkupdater.util.getAppName
 import com.apkupdater.util.to2f
 import com.apkupdater.util.toAnnotatedString
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 
 @Composable
@@ -94,36 +88,6 @@ fun TvInstallButton(
 }
 
 @Composable
-fun TvDirectDownloadButton(
-    app: AppUpdate
-) {
-    val handler = LocalUriHandler.current
-    val scope = rememberCoroutineScope()
-    ElevatedButton(
-        modifier = Modifier.padding(vertical = 8.dp),
-        onClick = {
-            when (val link = app.link) {
-                is Link.Url -> handler.openUri(link.link)
-                is Link.Xapk -> handler.openUri(link.link)
-                is Link.Play -> {
-                    scope.launch(Dispatchers.IO) {
-                        runCatching {
-                            val (files, _) = link.getInstallFiles()
-                            files.firstOrNull()?.url?.let {
-                                handler.openUri(it)
-                            }
-                        }
-                    }
-                }
-                else -> {}
-            }
-        }
-    ) {
-        Text("Visit Link", fontSize = 12.sp)
-    }
-}
-
-@Composable
 fun BoxScope.TvSourceIcon(app: AppUpdate) = SourceIcon(
     app.source,
     Modifier
@@ -176,7 +140,6 @@ fun TvUpdateItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TvDirectDownloadButton(app)
                 TvIgnoreVersionButton(app, onIgnoreVersion)
                 TvInstallButton(app, onInstall)
             }
@@ -205,7 +168,6 @@ fun TvSearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}) = Card {
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TvDirectDownloadButton(app)
                 TvInstallButton(app, onInstall)
             }
         }

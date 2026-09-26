@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -87,9 +88,7 @@ fun ProcessingDialog(message: String) = Dialog(
                 text = message.ifEmpty { "Processing apps list..." },
                 style = MaterialTheme.typography.titleMedium
             )
-            Box(Modifier.padding(vertical = 16.dp).height(8.dp).fillMaxWidth()) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-            }
+            CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp).size(36.dp))
         }
     }
 }

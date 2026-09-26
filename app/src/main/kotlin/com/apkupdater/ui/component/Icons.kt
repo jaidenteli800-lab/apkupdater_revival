@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -45,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apkupdater.R
 import com.apkupdater.data.ui.AppUpdate
-import com.apkupdater.data.ui.Link
 import com.apkupdater.data.ui.Source
 import com.apkupdater.util.clickableNoRipple
 
@@ -120,35 +116,12 @@ fun InstallIcon(onClick: () -> Unit, modifier: Modifier = Modifier) = Icon(
 )
 
 @Composable
-fun LinkIcon(onClick: () -> Unit, modifier: Modifier = Modifier) = Icon(
-    imageVector = Icons.Default.Info,
-    contentDescription = "Direct Link",
-    modifier = Modifier.clickableNoRipple(onClick).then(modifier)
-)
-
-@Composable
 fun BoxScope.InstallProgressIcon(
     app: AppUpdate,
     onClick: () -> Unit
 ) {
-    val uriHandler = LocalUriHandler.current
     if (!(app.isInstalling) && app.error == null) {
-        Row(Modifier.align(Alignment.TopEnd).padding(4.dp)) {
-            LinkIcon(
-                onClick = {
-                    when (val link = app.link) {
-                        is Link.Url -> uriHandler.openUri(link.link)
-                        is Link.Xapk -> uriHandler.openUri(link.link)
-                        is Link.Play -> {
-                            // Play Store links expire quickly and require special headers.
-                            // We can't easily open them in a browser, so we'll just not show an action or 
-                            // maybe show a toast in the future.
-                        }
-                        else -> {}
-                    }
-                },
-                modifier = Modifier.size(24.dp).padding(end = 4.dp)
-            )
+        Box(Modifier.align(Alignment.TopEnd).padding(4.dp)) {
             if (!app.isPersistent) {
                 InstallIcon(
                     { onClick() },

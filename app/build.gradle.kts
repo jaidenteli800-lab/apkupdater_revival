@@ -6,6 +6,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("kotlin-parcelize")
 }
 
 kotlin {
@@ -21,7 +22,7 @@ android {
     val buildNumber = System.getenv("BUILD_NUMBER").orEmpty()
     defaultConfig {
         applicationId = "com.apkupdater" + System.getenv("BUILD_TAG").orEmpty()
-        minSdk = 23
+        minSdk = 24
         targetSdk = 36
         versionCode = if (buildNumber.isEmpty()) 60 else buildNumber.toInt()
         versionName = if (buildNumber.isEmpty()) "3.1.0-Revived" else "0.0.$buildNumber"
@@ -78,6 +79,7 @@ android {
 
     lint {
         warning.addAll(arrayOf("ExtraTranslation", "MissingTranslation", "MissingQuantity"))
+        disable.add("OldTargetApi")
     }
 }
 
@@ -89,14 +91,17 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
-    implementation("androidx.navigation:navigation-compose:2.10.1")
-    implementation("androidx.navigation:navigation-runtime-ktx:2.10.1")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
+    implementation("androidx.navigation:navigation-runtime-ktx:2.10.2")
     implementation("androidx.tv:tv-foundation:1.0.0")
-    implementation("androidx.work:work-runtime-ktx:2.11.2")
-    implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs-gson:0.4.3")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+    implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs-gson:0.4.3") {
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions")
+    }
     implementation("com.github.rumboalla.KryptoPrefs:kryptoprefs:0.4.3")
     implementation("com.github.topjohnwu.libsu:core:6.0.0")
     implementation("com.auroraoss:gplayapi:3.6.4")
