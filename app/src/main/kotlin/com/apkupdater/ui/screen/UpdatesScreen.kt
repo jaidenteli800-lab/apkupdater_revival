@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +34,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +52,6 @@ import com.apkupdater.data.ui.AppUpdate
 import com.apkupdater.data.ui.UpdateStage
 import com.apkupdater.data.ui.UpdatesUiState
 import com.apkupdater.prefs.Prefs
-import com.apkupdater.ui.component.DownloadIcon
 import com.apkupdater.ui.component.EmptyGrid
 import com.apkupdater.ui.component.InstalledGrid
 import com.apkupdater.ui.component.RefreshIcon
@@ -58,12 +60,51 @@ import com.apkupdater.ui.component.TvUpdateItem
 import com.apkupdater.ui.component.UpdateItem
 import com.apkupdater.ui.theme.statusBarColor
 import com.apkupdater.util.formatBytes
+import com.apkupdater.viewmodel.InstallDialogState
 import com.apkupdater.viewmodel.UpdatesViewModel
 import org.koin.compose.koinInject
 
 
 @Composable
 fun UpdatesScreen(viewModel: UpdatesViewModel) {
+	LaunchedEffect(Unit) {
+		viewModel.refresh(load = false)
+	}
+
+	val dialogState by viewModel.dialogState.collectAsStateWithLifecycle()
+	when (val dialog = dialogState) {
+		is InstallDialogState.PersistentApp -> {
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissDialog() },
+				title = { Text("Cannot Install Persistent App") },
+				text = { Text("This is a persistent system app (${dialog.appName}) and cannot be updated directly. Persistent apps are protected by Android OS and cannot be replaced via standard package installation.") },
+				confirmButton = {
+					Button(onClick = { viewModel.dismissDialog() }) {
+						Text("OK")
+					}
+				}
+			)
+		}
+		is InstallDialogState.PermissionRequired -> {
+			AlertDialog(
+				onDismissRequest = { viewModel.dismissDialog() },
+				title = { Text("Permission Required") },
+				text = { Text("APKUpdater needs permission to install unknown apps. Press Continue to open Android System Settings, enable 'Allow from this source' for APKUpdater, then return to complete installation.") },
+				confirmButton = {
+					Button(onClick = { viewModel.openPermissionSettings() }) {
+						Text("Continue to Settings")
+					}
+				},
+				dismissButton = {
+					Button(onClick = { viewModel.dismissDialog() }) {
+						Text("Cancel")
+					}
+				}
+			)
+		}
+		else -> {}
+	}
+
 	when (val state = viewModel.state().collectAsStateWithLifecycle().value) {
 		is UpdatesUiState.Loading -> UpdatesScreenLoading(viewModel, state.stage, state.progress)
 		is UpdatesUiState.Error -> UpdatesScreenError(viewModel, state.message)
@@ -80,8 +121,11 @@ fun UpdatesTopBar(viewModel: UpdatesViewModel) = TopAppBar(
 	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
 	windowInsets = WindowInsets(0),
 	actions = {
-		IconButton(onClick = { viewModel.installAll() }) {
-			DownloadIcon(stringResource(R.string.install_all))
+		Button(
+			onClick = { viewModel.installAll() },
+			modifier = Modifier.padding(end = 4.dp)
+		) {
+			Text("UPDATE ALL")
 		}
 		IconButton(onClick = { viewModel.refresh() }) {
 			RefreshIcon(stringResource(R.string.refresh_updates))
@@ -140,7 +184,9 @@ fun UpdatesScreenSuccess(
 	updates: List<AppUpdate>
 ) = Column {
 	val handler = LocalUriHandler.current
-	val tv = koinInject<Prefs>().androidTvUi.get()
+	val prefs = koinInject<Prefs>()
+	val tv = prefs.androidTvUi.get()
+	val isRoot = prefs.rootInstall.get()
 
 	UpdatesTopBar(viewModel)
 
@@ -158,6 +204,14 @@ fun UpdatesScreenSuccess(
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                 .padding(12.dp)
         ) {
+            if (!isRoot) {
+                Text(
+                    text = "Please stay in the app during updates to manually approve each package installation prompt.",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
             Text(
                 text = "Global Progress",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),

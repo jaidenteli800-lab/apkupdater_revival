@@ -1,8 +1,13 @@
 package com.apkupdater.ui.screen
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,10 +17,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,9 +40,6 @@ import com.apkupdater.R
 import com.apkupdater.data.ui.AppsUiState
 import com.apkupdater.prefs.Prefs
 import com.apkupdater.ui.component.DefaultErrorScreen
-import com.apkupdater.ui.component.ExcludeAppStoreIcon
-import com.apkupdater.ui.component.ExcludeDisabledIcon
-import com.apkupdater.ui.component.ExcludeSystemIcon
 import com.apkupdater.ui.component.InstalledGrid
 import com.apkupdater.ui.component.InstalledItem
 import com.apkupdater.ui.component.LoadingGrid
@@ -88,14 +88,50 @@ fun ProcessingDialog(message: String) = Dialog(
                 text = message.ifEmpty { "Processing apps list..." },
                 style = MaterialTheme.typography.titleMedium
             )
-            CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp).size(36.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp))
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterRow(
+    viewModel: AppsViewModel,
+    excludeSystem: Boolean,
+    excludeAppStore: Boolean,
+    excludeDisabled: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(
+            selected = !excludeSystem,
+            onClick = { viewModel.onSystemClick() },
+            label = { Text(if (!excludeSystem) "System Apps: Shown" else "System Apps: Hidden") }
+        )
+        FilterChip(
+            selected = !excludeAppStore,
+            onClick = { viewModel.onAppStoreClick() },
+            label = { Text(if (!excludeAppStore) "Store Apps: Shown" else "Store Apps: Hidden") }
+        )
+        FilterChip(
+            selected = !excludeDisabled,
+            onClick = { viewModel.onDisabledClick() },
+            label = { Text(if (!excludeDisabled) "Disabled Apps: Shown" else "Disabled Apps: Hidden") }
+        )
     }
 }
 
 @Composable
 fun AppsScreenSuccess(viewModel: AppsViewModel, state: AppsUiState.Success) = Column {
-	AppsTopBar(viewModel, state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
+	AppsTopBar()
+	FilterRow(viewModel, state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
     
     if (state.apps.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -124,7 +160,8 @@ fun AppsScreenSuccess(viewModel: AppsViewModel, state: AppsUiState.Success) = Co
 
 @Composable
 fun AppsScreenLoading(viewModel: AppsViewModel, state: AppsUiState.Loading) = Column {
-	AppsTopBar(viewModel, state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
+	AppsTopBar()
+	FilterRow(viewModel, state.excludeSystem, state.excludeAppStore, state.excludeDisabled)
 	Box(modifier = Modifier.fillMaxSize()) {
         LoadingGrid()
 		Column(
@@ -146,26 +183,10 @@ fun AppsScreenLoading(viewModel: AppsViewModel, state: AppsUiState.Loading) = Co
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppsTopBar(
-	viewModel: AppsViewModel,
-	excludeSystem: Boolean,
-	excludeAppStore: Boolean,
-	excludeDisabled: Boolean
-) = TopAppBar(
+fun AppsTopBar() = TopAppBar(
 	title = { Text(stringResource(R.string.tab_apps)) },
 	colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.statusBarColor()),
 	windowInsets = WindowInsets(0),
-	actions = {
-		IconButton(onClick = { viewModel.onSystemClick() }) {
-			ExcludeSystemIcon(excludeSystem)
-		}
-		IconButton(onClick = { viewModel.onAppStoreClick() }) {
-			ExcludeAppStoreIcon(excludeAppStore)
-		}
-		IconButton(onClick = { viewModel.onDisabledClick() }) {
-			ExcludeDisabledIcon(excludeDisabled)
-		}
-	},
 	navigationIcon = {
 		Box(Modifier.minimumInteractiveComponentSize().size(40.dp), Alignment.Center) {
 			Icon(Icons.Filled.Home, "Tab Icon")

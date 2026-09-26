@@ -19,10 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
@@ -121,7 +121,8 @@ fun ActionDialog(state: ActionState, onDismiss: () -> Unit) = Dialog(
             )
             
             if (state is ActionState.Loading) {
-                CircularProgressIndicator(modifier = Modifier.padding(vertical = 16.dp).size(36.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp))
             } else {
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -351,17 +352,17 @@ fun Settings(viewModel: SettingsViewModel) = LazyColumn {
 
 	item {
 		val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-		LargeTitle(stringResource(R.string.settings_alarm), Modifier.padding(start = 16.dp, top = 16.dp))
+		LargeTitle("Periodic Background Checks", Modifier.padding(start = 16.dp, top = 16.dp))
 		SwitchSetting(
 			checked = viewModel.getEnableAlarm(),
 			onCheckedChange = { viewModel.setEnableAlarm(it, launcher) },
-			text = stringResource(R.string.settings_alarm),
+			text = "Check for Updates in Background",
 			icon = R.drawable.ic_alarm
 		)
 		if (LocalContext.current.isAndroidTv()) {
 			DropDownSetting(
-				text = stringResource(R.string.settings_hour),
-				options = (0..23).map { it.toString() },
+				text = "Preferred Check Hour",
+				options = (0..23).map { "$it:00" },
 				getValue = { viewModel.getAlarmHour() },
 				setValue = { viewModel.setAlarmHour(it) },
 				icon = R.drawable.ic_hour
@@ -370,14 +371,14 @@ fun Settings(viewModel: SettingsViewModel) = LazyColumn {
 			SliderSetting(
 				getValue = { viewModel.getAlarmHour().toFloat() },
 				setValue = { viewModel.setAlarmHour(it.toInt()) },
-				text = stringResource(R.string.settings_hour),
+				text = "Preferred Check Hour",
 				valueRange = 0f..23f,
 				steps = 23,
 				R.drawable.ic_hour
 			)
 		}
 		SegmentedButtonSetting(
-			stringResource(R.string.frequency),
+			"Check Frequency",
 			listOf(
 				stringResource(R.string.settings_alarm_daily),
 				stringResource(R.string.settings_alarm_3day),

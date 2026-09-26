@@ -8,9 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInstaller
-import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -134,55 +132,27 @@ class SessionInstaller(
                 throw Exception("No APKs found in bundle")
             }
 
+            apks.sortByDescending { it.name.contains("base", ignoreCase = true) || it.length() > 5 * 1024 * 1024 }
+
             install(id, packageName, apks)
 
         } catch (e: Exception) {
             Log.e("SessionInstaller", "XAPK extraction failed", e)
             installLog.log("Bundle error for $packageName: ${e.message}")
             installLog.emitStatus(AppInstallStatus(success = false, id = id, snack = true, errorMessage = "Bundle Error: ${e.message}"))
-        } finally {
             tempDir.deleteRecursively()
         }
     }
 
     suspend fun install(id: Int, packageName: String, files: List<File>) {
         val rootEnabled = prefs.rootInstall.get() && withContext(Dispatchers.IO) { Shell.getShell().isRoot }
-        val isSystem = isSystemApp(packageName)
-        val isUpdate = isAppInstalled(packageName)
 
-        // Logic: Use root if enabled AND (it's a system app OR it's a new installation).
-        // For normal updates to user apps, use PackageInstaller (which supports silent updates on API 31+).
-        if (rootEnabled && (isSystem || !isUpdate)) {
+        if (rootEnabled) {
+            installLog.log("Using Root installer for $packageName")
             runRootInstallFiles(id, packageName, files)
         } else {
             installLog.log("Using PackageInstaller for $packageName")
-            val success = installNew(id, packageName, files)
-            // Fallback to root if normal installation failed and root is available
-            if (!success && rootEnabled) {
-                installLog.log("PackageInstaller failed, trying root fallback for $packageName")
-                runRootInstallFiles(id, packageName, files)
-            }
-        }
-    }
-
-    private fun isSystemApp(packageName: String): Boolean {
-        return try {
-            val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
-            (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun isAppInstalled(packageName: String): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
-            Log.d("SessionInstaller", "App $packageName not installed: ${e.message}")
-            false
-        } catch (_: Exception) {
-            false
+            installNew(id, packageName, files)
         }
     }
 
@@ -215,12 +185,12 @@ class SessionInstaller(
             files.forEach { file ->
                 val tmpPath = "/data/local/tmp/${file.name}"
                 Shell.cmd("rm -f '$tmpPath'").exec()
-                Shell.cmd("cat '${file.absolutePath}' > '$tmpPath'").exec()
+                Shell.cmd("cp '${file.absolutePath}' '$tmpPath' || cat '${file.absolutePath}' > '$tmpPath'").exec()
                 Shell.cmd("chmod 666 '$tmpPath'").exec()
                 tmpFiles.add(tmpPath)
             }
 
-            val flags = "-r -d -g -t --user 0"
+            val flags = "-r -d -t"
             val bypassFlag = if (Build.VERSION.SDK_INT >= 34) " --bypass-low-target-sdk-block" else ""
 
             installLog.log("Root: Installing $packageName (${files.size} files)")
@@ -300,7 +270,7 @@ class SessionInstaller(
             params.setAppLabel(packageName)
         }
 
-        if (Build.VERSION.SDK_INT >= 24) params.setAppPackageName(packageName)
+        params.setAppPackageName(packageName)
         if (Build.VERSION.SDK_INT >= 31) {
             params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
@@ -364,7 +334,7 @@ class SessionInstaller(
             val actionId = "$INSTALL_ACTION.$id.$timestamp"
             val filter = IntentFilter(actionId)
             if (Build.VERSION.SDK_INT >= 33) {
-                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
             } else {
                 @Suppress("UnspecifiedRegisterReceiverFlag")
                 context.registerReceiver(receiver, filter)
@@ -379,8 +349,8 @@ class SessionInstaller(
                     var baseFound = false
                     files.forEachIndexed { index, file ->
                         val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
-                        val isBase = info != null && !baseFound && (info.packageName == packageName || files.size == 1)
-                        val name = if (isBase) {
+                        val isBase = (info != null && (info.packageName == packageName || files.size == 1)) || file.name.contains("base", ignoreCase = true)
+                        val name = if (isBase && !baseFound) {
                             baseFound = true
                             "base.apk"
                         } else {

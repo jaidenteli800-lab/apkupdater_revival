@@ -5,7 +5,6 @@ import androidx.compose.ui.platform.UriHandler
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apkupdater.R
-import com.apkupdater.data.snack.TextSnack
 import com.apkupdater.data.ui.ApkMirrorSource
 import com.apkupdater.data.ui.AppInstallProgress
 import com.apkupdater.data.ui.AppInstallStatus
@@ -19,11 +18,19 @@ import com.apkupdater.util.SnackBar
 import com.apkupdater.util.Stringer
 import com.apkupdater.util.UpdatesNotification
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
+sealed class InstallDialogState {
+    data object Idle : InstallDialogState()
+    data class PersistentApp(val appName: String) : InstallDialogState()
+    data object PermissionRequired : InstallDialogState()
+}
 
 
 abstract class InstallViewModel(
@@ -40,12 +47,30 @@ abstract class InstallViewModel(
     private val maxProgressMap = mutableMapOf<Int, Int>()
     protected val installJobs = ConcurrentHashMap<Int, Job>()
 
+    protected val _dialogState = MutableStateFlow<InstallDialogState>(InstallDialogState.Idle)
+    val dialogState = _dialogState.asStateFlow()
+
+    fun dismissDialog() {
+        _dialogState.value = InstallDialogState.Idle
+    }
+
+    fun openPermissionSettings() {
+        _dialogState.value = InstallDialogState.Idle
+        installer.openInstallSettings()
+    }
+
     fun install(update: AppUpdate, uriHandler: UriHandler) {
         installLog.log("Update clicked for ${update.name}")
         
         if (update.isPersistent) {
             installLog.log("Cannot update persistent app: ${update.packageName}")
-            snackBar.snackBar(viewModelScope, TextSnack(stringer.get(R.string.persistent_app_warning)))
+            _dialogState.value = InstallDialogState.PersistentApp(update.name)
+            return
+        }
+
+        if (!prefs.rootInstall.get() && !installer.checkPermission()) {
+            installLog.log("Permission required for ${update.packageName}")
+            _dialogState.value = InstallDialogState.PermissionRequired
             return
         }
 
