@@ -1,0 +1,1208 @@
+name: 🔬 APKUpdater Revival - Upstream Comparison
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apkupdater-revival-upstream-comparison
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_REPOSITORY: rumboalla/apkupdater
+  UPSTREAM_BRANCH: 3.x
+
+  REVIVAL_REPOSITORY: jaidenteli800-lab/apkupdater_revival
+  REVIVAL_BRANCH: 3.x
+
+jobs:
+  compare:
+    name: 🔬 Compare Upstream vs Revival
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+
+      # ============================================================
+      # CHECKOUT REVIVAL
+      # ============================================================
+
+      - name: 📥 Checkout APKUpdater Revival
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.REVIVAL_REPOSITORY }}
+          ref: ${{ env.REVIVAL_BRANCH }}
+          fetch-depth: 0
+          path: revival
+
+      # ============================================================
+      # CHECKOUT UPSTREAM
+      # ============================================================
+
+      - name: 📥 Checkout upstream APKUpdater
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.UPSTREAM_REPOSITORY }}
+          ref: ${{ env.UPSTREAM_BRANCH }}
+          fetch-depth: 0
+          path: upstream
+
+      # ============================================================
+      # BASIC INFORMATION
+      # ============================================================
+
+      - name: 🔎 Collect repository information
+        id: info
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p comparison
+
+          UPSTREAM_SHA="$(git -C upstream rev-parse HEAD)"
+          REVIVAL_SHA="$(git -C revival rev-parse HEAD)"
+
+          UPSTREAM_SHORT="$(git -C upstream rev-parse --short=12 HEAD)"
+          REVIVAL_SHORT="$(git -C revival rev-parse --short=12 HEAD)"
+
+          UPSTREAM_MESSAGE="$(git -C upstream log -1 --pretty=%s)"
+          REVIVAL_MESSAGE="$(git -C revival log -1 --pretty=%s)"
+
+          UPSTREAM_DATE="$(git -C upstream log -1 --format=%cI)"
+          REVIVAL_DATE="$(git -C revival log -1 --format=%cI)"
+
+          {
+            echo "UPSTREAM_SHA=${UPSTREAM_SHA}"
+            echo "UPSTREAM_SHORT=${UPSTREAM_SHORT}"
+            echo "UPSTREAM_MESSAGE=${UPSTREAM_MESSAGE}"
+            echo "UPSTREAM_DATE=${UPSTREAM_DATE}"
+
+            echo "REVIVAL_SHA=${REVIVAL_SHA}"
+            echo "REVIVAL_SHORT=${REVIVAL_SHORT}"
+            echo "REVIVAL_MESSAGE=${REVIVAL_MESSAGE}"
+            echo "REVIVAL_DATE=${REVIVAL_DATE}"
+          } >> "$GITHUB_ENV"
+
+          echo "=============================================="
+          echo " APKUPDATER REVIVAL COMPARISON"
+          echo "=============================================="
+          echo ""
+          echo "Upstream:"
+          echo "  ${UPSTREAM_REPOSITORY}"
+          echo "  ${UPSTREAM_BRANCH}"
+          echo "  ${UPSTREAM_SHA}"
+          echo ""
+          echo "Revival:"
+          echo "  ${REVIVAL_REPOSITORY}"
+          echo "  ${REVIVAL_BRANCH}"
+          echo "  ${REVIVAL_SHA}"
+          echo ""
+          echo "=============================================="
+
+      # ============================================================
+      # CREATE SNAPSHOT GIT REPOSITORY
+      #
+      # This creates:
+      #
+      #   commit A = exact upstream tree
+      #   commit B = exact Revival tree
+      #
+      # That gives us Git's rename/copy detection and diff engine
+      # without requiring the two repositories to share history.
+      # ============================================================
+
+      - name: 🧬 Create comparison snapshots
+        id: snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf comparison/snapshot
+          mkdir -p comparison/snapshot
+
+          cd comparison/snapshot
+
+          git init -q
+          git config user.name "APKUpdater Revival Comparison"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # ----------------------------------------------------------
+          # Snapshot A: upstream
+          # ----------------------------------------------------------
+
+          cp -a ../../upstream/. .
+
+          rm -rf .git
+
+          git init -q
+          git config user.name "APKUpdater Revival Comparison"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -q \
+            -m "Comparison snapshot: upstream ${UPSTREAM_SHORT}"
+
+          UPSTREAM_SNAPSHOT_SHA="$(git rev-parse HEAD)"
+
+          # ----------------------------------------------------------
+          # Snapshot B: Revival
+          # ----------------------------------------------------------
+
+          find . \
+            -mindepth 1 \
+            -maxdepth 1 \
+            ! -name ".git" \
+            -exec rm -rf {} +
+
+          cp -a ../../revival/. .
+
+          git add -A
+
+          git commit -q \
+            -m "Comparison snapshot: Revival ${REVIVAL_SHORT}"
+
+          REVIVAL_SNAPSHOT_SHA="$(git rev-parse HEAD)"
+
+          echo "UPSTREAM_SNAPSHOT_SHA=${UPSTREAM_SNAPSHOT_SHA}" >> "$GITHUB_ENV"
+          echo "REVIVAL_SNAPSHOT_SHA=${REVIVAL_SNAPSHOT_SHA}" >> "$GITHUB_ENV"
+
+          echo "Upstream snapshot: ${UPSTREAM_SNAPSHOT_SHA}"
+          echo "Revival snapshot:  ${REVIVAL_SNAPSHOT_SHA}"
+
+      # ============================================================
+      # FILE STATUS
+      # ============================================================
+
+      - name: 📊 Generate file status
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd comparison/snapshot
+
+          git diff \
+            --find-renames=50% \
+            --find-copies=50% \
+            --name-status \
+            "${UPSTREAM_SNAPSHOT_SHA}" \
+            "${REVIVAL_SNAPSHOT_SHA}" \
+            > ../../comparison/file-status.txt
+
+          git diff \
+            --find-renames=50% \
+            --find-copies=50% \
+            --summary \
+            "${UPSTREAM_SNAPSHOT_SHA}" \
+            "${REVIVAL_SNAPSHOT_SHA}" \
+            > ../../comparison/diff-summary.txt
+
+      # ============================================================
+      # NUMERIC DIFF STATISTICS
+      # ============================================================
+
+      - name: 📈 Generate line statistics
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd comparison/snapshot
+
+          git diff \
+            --find-renames=50% \
+            --find-copies=50% \
+            --numstat \
+            "${UPSTREAM_SNAPSHOT_SHA}" \
+            "${REVIVAL_SNAPSHOT_SHA}" \
+            > ../../comparison/numstat.txt
+
+          git diff \
+            --find-renames=50% \
+            --find-copies=50% \
+            --stat \
+            "${UPSTREAM_SNAPSHOT_SHA}" \
+            "${REVIVAL_SNAPSHOT_SHA}" \
+            > ../../comparison/stat.txt
+
+      # ============================================================
+      # FULL DIFF
+      # ============================================================
+
+      - name: 📝 Generate full diff
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd comparison/snapshot
+
+          git diff \
+            --find-renames=50% \
+            --find-copies=50% \
+            --binary \
+            --full-index \
+            "${UPSTREAM_SNAPSHOT_SHA}" \
+            "${REVIVAL_SNAPSHOT_SHA}" \
+            > ../../comparison/full-diff.patch
+
+      # ============================================================
+      # FILE INVENTORY
+      # ============================================================
+
+      - name: 📚 Build file inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find upstream \
+            -type f \
+            -not -path '*/.git/*' \
+            -printf '%P\n' \
+            | sort \
+            > comparison/upstream-files.txt
+
+          find revival \
+            -type f \
+            -not -path '*/.git/*' \
+            -printf '%P\n' \
+            | sort \
+            > comparison/revival-files.txt
+
+          comm -12 \
+            comparison/upstream-files.txt \
+            comparison/revival-files.txt \
+            > comparison/common-files.txt
+
+          comm -23 \
+            comparison/upstream-files.txt \
+            comparison/revival-files.txt \
+            > comparison/upstream-only-files.txt
+
+          comm -13 \
+            comparison/upstream-files.txt \
+            comparison/revival-files.txt \
+            > comparison/revival-only-files.txt
+
+      # ============================================================
+      # DETAILED METRICS
+      # ============================================================
+
+      - name: 🧮 Calculate detailed metrics
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+          from collections import Counter, defaultdict
+
+          ROOT = pathlib.Path(".")
+          UPSTREAM = ROOT / "upstream"
+          REVIVAL = ROOT / "revival"
+          OUT = ROOT / "comparison"
+
+          def run(cmd, cwd=None):
+              return subprocess.run(
+                  cmd,
+                  cwd=cwd,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  check=False
+              )
+
+          def read_lines(path):
+              try:
+                  return path.read_text(
+                      encoding="utf-8",
+                      errors="replace"
+                  ).splitlines()
+              except Exception:
+                  return []
+
+          def file_metrics(path):
+              try:
+                  data = path.read_bytes()
+              except Exception:
+                  return {
+                      "bytes": 0,
+                      "lines": 0,
+                      "words": 0,
+                      "characters": 0
+                  }
+
+              text = data.decode("utf-8", errors="replace")
+
+              return {
+                  "bytes": len(data),
+                  "lines": len(text.splitlines()),
+                  "words": len(re.findall(r"\S+", text)),
+                  "characters": len(text)
+              }
+
+          def rel_files(root):
+              result = []
+
+              for path in root.rglob("*"):
+                  if not path.is_file():
+                      continue
+
+                  if ".git" in path.parts:
+                      continue
+
+                  result.append(path.relative_to(root).as_posix())
+
+              return sorted(result)
+
+          upstream_files = set(rel_files(UPSTREAM))
+          revival_files = set(rel_files(REVIVAL))
+
+          common = sorted(upstream_files & revival_files)
+          upstream_only = sorted(upstream_files - revival_files)
+          revival_only = sorted(revival_files - upstream_files)
+
+          # ----------------------------------------------------------
+          # Status from Git
+          # ----------------------------------------------------------
+
+          status_result = run([
+              "git",
+              "diff",
+              "--find-renames=50%",
+              "--find-copies=50%",
+              "--name-status",
+              os.environ["UPSTREAM_SNAPSHOT_SHA"],
+              os.environ["REVIVAL_SNAPSHOT_SHA"],
+          ], cwd=ROOT / "comparison" / "snapshot")
+
+          statuses = []
+
+          for line in status_result.stdout.splitlines():
+              if not line.strip():
+                  continue
+
+              parts = line.split("\t")
+
+              status = parts[0]
+
+              if status.startswith("R") or status.startswith("C"):
+                  old_path = parts[1] if len(parts) > 1 else ""
+                  new_path = parts[2] if len(parts) > 2 else ""
+
+                  statuses.append({
+                      "status": status[0],
+                      "score": status[1:],
+                      "old_path": old_path,
+                      "path": new_path,
+                  })
+              else:
+                  path = parts[1] if len(parts) > 1 else ""
+
+                  statuses.append({
+                      "status": status[0],
+                      "score": "",
+                      "old_path": "",
+                      "path": path,
+                  })
+
+          status_counts = Counter(item["status"] for item in statuses)
+
+          # ----------------------------------------------------------
+          # Detailed metrics
+          # ----------------------------------------------------------
+
+          upstream_totals = Counter()
+          revival_totals = Counter()
+
+          for rel in upstream_files:
+              metrics = file_metrics(UPSTREAM / rel)
+
+              for key, value in metrics.items():
+                  upstream_totals[key] += value
+
+          for rel in revival_files:
+              metrics = file_metrics(REVIVAL / rel)
+
+              for key, value in metrics.items():
+                  revival_totals[key] += value
+
+          # ----------------------------------------------------------
+          # Changed-file metrics
+          # ----------------------------------------------------------
+
+          changed_files = []
+
+          for item in statuses:
+              rel = item["path"]
+
+              upstream_path = UPSTREAM / rel
+              revival_path = REVIVAL / rel
+
+              old_rel = item.get("old_path")
+
+              if old_rel:
+                  upstream_path = UPSTREAM / old_rel
+
+              before = file_metrics(upstream_path) \
+                  if upstream_path.exists() else {
+                      "bytes": 0,
+                      "lines": 0,
+                      "words": 0,
+                      "characters": 0
+                  }
+
+              after = file_metrics(revival_path) \
+                  if revival_path.exists() else {
+                      "bytes": 0,
+                      "lines": 0,
+                      "words": 0,
+                      "characters": 0
+                  }
+
+              changed_files.append({
+                  "status": item["status"],
+                  "score": item.get("score", ""),
+                  "old_path": old_rel,
+                  "path": rel,
+                  "before": before,
+                  "after": after,
+                  "delta": {
+                      key: after[key] - before[key]
+                      for key in before
+                  }
+              })
+
+          # ----------------------------------------------------------
+          # File type statistics
+          # ----------------------------------------------------------
+
+          def extension(path):
+              name = pathlib.PurePosixPath(path).name
+
+              if "." not in name:
+                  return "[no extension]"
+
+              return pathlib.PurePosixPath(path).suffix.lower()
+
+          upstream_types = Counter(extension(x) for x in upstream_files)
+          revival_types = Counter(extension(x) for x in revival_files)
+
+          # ----------------------------------------------------------
+          # Directory statistics
+          # ----------------------------------------------------------
+
+          def top_directory(path):
+              parts = pathlib.PurePosixPath(path).parts
+
+              if len(parts) <= 1:
+                  return "[root]"
+
+              return parts[0]
+
+          upstream_dirs = Counter(top_directory(x) for x in upstream_files)
+          revival_dirs = Counter(top_directory(x) for x in revival_files)
+
+          # ----------------------------------------------------------
+          # Biggest changed files
+          # ----------------------------------------------------------
+
+          for item in changed_files:
+              delta = item["delta"]
+
+              item["change_volume"] = (
+                  abs(delta["bytes"])
+                  + abs(delta["characters"])
+                  + abs(delta["lines"])
+              )
+
+          biggest = sorted(
+              changed_files,
+              key=lambda x: x["change_volume"],
+              reverse=True
+          )[:50]
+
+          # ----------------------------------------------------------
+          # Android / Gradle files
+          # ----------------------------------------------------------
+
+          android_gradle = []
+
+          patterns = [
+              "build.gradle",
+              "build.gradle.kts",
+              "settings.gradle",
+              "settings.gradle.kts",
+              "gradle.properties",
+              "gradle-wrapper.properties",
+              "AndroidManifest.xml",
+              "proguard",
+              "consumer-rules",
+              "libs.versions.toml",
+          ]
+
+          for item in changed_files:
+              path = item["path"]
+
+              if any(
+                  pattern.lower() in path.lower()
+                  for pattern in patterns
+              ):
+                  android_gradle.append(item)
+
+          # ----------------------------------------------------------
+          # Commits
+          # ----------------------------------------------------------
+
+          def commits(repo):
+              result = run([
+                  "git",
+                  "log",
+                  "--pretty=format:%H%x09%h%x09%cI%x09%an%x09%s",
+                  "-n",
+                  "100",
+              ], cwd=repo)
+
+              rows = []
+
+              for line in result.stdout.splitlines():
+                  parts = line.split("\t", 4)
+
+                  if len(parts) == 5:
+                      rows.append({
+                          "sha": parts[0],
+                          "short_sha": parts[1],
+                          "date": parts[2],
+                          "author": parts[3],
+                          "subject": parts[4],
+                      })
+
+              return rows
+
+          upstream_commits = commits(UPSTREAM)
+          revival_commits = commits(REVIVAL)
+
+          # ----------------------------------------------------------
+          # Final JSON
+          # ----------------------------------------------------------
+
+          report = {
+              "generated_at": os.environ.get("GITHUB_RUN_STARTED_AT", ""),
+              "upstream": {
+                  "repository": os.environ["UPSTREAM_REPOSITORY"],
+                  "branch": os.environ["UPSTREAM_BRANCH"],
+                  "sha": os.environ["UPSTREAM_SHA"],
+                  "short_sha": os.environ["UPSTREAM_SHORT"],
+                  "commit": os.environ["UPSTREAM_MESSAGE"],
+                  "date": os.environ["UPSTREAM_DATE"],
+                  "file_count": len(upstream_files),
+                  "totals": dict(upstream_totals),
+              },
+              "revival": {
+                  "repository": os.environ["REVIVAL_REPOSITORY"],
+                  "branch": os.environ["REVIVAL_BRANCH"],
+                  "sha": os.environ["REVIVAL_SHA"],
+                  "short_sha": os.environ["REVIVAL_SHORT"],
+                  "commit": os.environ["REVIVAL_MESSAGE"],
+                  "date": os.environ["REVIVAL_DATE"],
+                  "file_count": len(revival_files),
+                  "totals": dict(revival_totals),
+              },
+              "files": {
+                  "common": common,
+                  "upstream_only": upstream_only,
+                  "revival_only": revival_only,
+              },
+              "status_counts": dict(status_counts),
+              "changed_files": changed_files,
+              "biggest_changes": biggest,
+              "android_gradle_changes": android_gradle,
+              "file_types": {
+                  "upstream": dict(upstream_types),
+                  "revival": dict(revival_types),
+              },
+              "directories": {
+                  "upstream": dict(upstream_dirs),
+                  "revival": dict(revival_dirs),
+              },
+              "commits": {
+                  "upstream": upstream_commits,
+                  "revival": revival_commits,
+              },
+          }
+
+          with open(
+              OUT / "comparison.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+              json.dump(report, f, indent=2)
+
+          print(
+              json.dumps(
+                  {
+                      "upstream_files": len(upstream_files),
+                      "revival_files": len(revival_files),
+                      "common_files": len(common),
+                      "upstream_only": len(upstream_only),
+                      "revival_only": len(revival_only),
+                      "changed": len(changed_files),
+                      "status_counts": dict(status_counts),
+                  },
+                  indent=2
+              )
+          )
+          PY
+
+      # ============================================================
+      # HUMAN-READABLE REPORT
+      # ============================================================
+
+      - name: 📄 Generate comparison report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          with open(
+              "comparison/comparison.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              data = json.load(f)
+
+          upstream = data["upstream"]
+          revival = data["revival"]
+
+          counts = data["status_counts"]
+
+          def n(value):
+              return f"{value:,}"
+
+          def section(title):
+              return f"\n## {title}\n"
+
+          lines = []
+
+          # ========================================================
+          # BIG STATS BLOCK
+          # ========================================================
+
+          lines.append("# 🔬 APKUpdater Revival — Upstream Comparison")
+          lines.append("")
+          lines.append("```text")
+          lines.append("============================================================")
+          lines.append(" APKUPDATER REVIVAL vs UPSTREAM")
+          lines.append("============================================================")
+          lines.append("")
+          lines.append(f"UPSTREAM FILES:       {n(len(data['files']['common']) + len(data['files']['upstream_only']))}")
+          lines.append(f"REVIVAL FILES:        {n(len(data['files']['common']) + len(data['files']['revival_only']))}")
+          lines.append(f"COMMON FILES:         {n(len(data['files']['common']))}")
+          lines.append(f"UPSTREAM ONLY:        {n(len(data['files']['upstream_only']))}")
+          lines.append(f"REVIVAL ONLY:         {n(len(data['files']['revival_only']))}")
+          lines.append("")
+          lines.append(f"ADDED:                {n(counts.get('A', 0))}")
+          lines.append(f"MODIFIED:             {n(counts.get('M', 0))}")
+          lines.append(f"DELETED:              {n(counts.get('D', 0))}")
+          lines.append(f"RENAMED:              {n(counts.get('R', 0))}")
+          lines.append(f"COPIED:               {n(counts.get('C', 0))}")
+          lines.append("")
+          lines.append(f"UPSTREAM BYTES:       {n(upstream['totals']['bytes'])}")
+          lines.append(f"REVIVAL BYTES:        {n(revival['totals']['bytes'])}")
+          lines.append(f"UPSTREAM LINES:       {n(upstream['totals']['lines'])}")
+          lines.append(f"REVIVAL LINES:        {n(revival['totals']['lines'])}")
+          lines.append(f"UPSTREAM WORDS:       {n(upstream['totals']['words'])}")
+          lines.append(f"REVIVAL WORDS:        {n(revival['totals']['words'])}")
+          lines.append(f"UPSTREAM CHARACTERS:  {n(upstream['totals']['characters'])}")
+          lines.append(f"REVIVAL CHARACTERS:   {n(revival['totals']['characters'])}")
+          lines.append("")
+          lines.append("============================================================")
+          lines.append("```")
+
+          # ========================================================
+          # EXACT COMMITS
+          # ========================================================
+
+          lines.append(section("Exact Revisions"))
+
+          lines.append("| Repository | Branch | SHA | Commit | Date |")
+          lines.append("|---|---|---|---|---|")
+          lines.append(
+              f"| Upstream | `{upstream['branch']}` | `{upstream['sha']}` | "
+              f"{upstream['commit']} | {upstream['date']} |"
+          )
+          lines.append(
+              f"| Revival | `{revival['branch']}` | `{revival['sha']}` | "
+              f"{revival['commit']} | {revival['date']} |"
+          )
+
+          # ========================================================
+          # FILE SETS
+          # ========================================================
+
+          lines.append(section("File Set"))
+
+          lines.append(
+              f"- **Common:** {n(len(data['files']['common']))}"
+          )
+          lines.append(
+              f"- **Upstream-only:** {n(len(data['files']['upstream_only']))}"
+          )
+          lines.append(
+              f"- **Revival-only:** {n(len(data['files']['revival_only']))}"
+          )
+
+          # ========================================================
+          # STATUS
+          # ========================================================
+
+          lines.append(section("Change Status"))
+
+          lines.append("| Status | Count |")
+          lines.append("|---|---:|")
+
+          for key, label in [
+              ("A", "Added"),
+              ("M", "Modified"),
+              ("D", "Deleted"),
+              ("R", "Renamed"),
+              ("C", "Copied"),
+          ]:
+              lines.append(
+                  f"| {label} | {n(counts.get(key, 0))} |"
+              )
+
+          # ========================================================
+          # FILE TYPES
+          # ========================================================
+
+          lines.append(section("File Types"))
+
+          all_types = sorted(
+              set(data["file_types"]["upstream"])
+              | set(data["file_types"]["revival"])
+          )
+
+          lines.append("| Extension | Upstream | Revival | Difference |")
+          lines.append("|---|---:|---:|---:|")
+
+          for ext in all_types:
+              a = data["file_types"]["upstream"].get(ext, 0)
+              b = data["file_types"]["revival"].get(ext, 0)
+
+              lines.append(
+                  f"| `{ext}` | {n(a)} | {n(b)} | {n(b - a)} |"
+              )
+
+          # ========================================================
+          # BIGGEST CHANGES
+          # ========================================================
+
+          lines.append(section("Biggest Changed Files"))
+
+          lines.append(
+              "| Status | File | Before bytes | After bytes | "
+              "Δ bytes | Before lines | After lines | Δ lines |"
+          )
+          lines.append("|---|---|---:|---:|---:|---:|---:|---:|")
+
+          for item in data["biggest_changes"][:50]:
+              lines.append(
+                  f"| {item['status']} | `{item['path']}` | "
+                  f"{n(item['before']['bytes'])} | "
+                  f"{n(item['after']['bytes'])} | "
+                  f"{n(item['delta']['bytes'])} | "
+                  f"{n(item['before']['lines'])} | "
+                  f"{n(item['after']['lines'])} | "
+                  f"{n(item['delta']['lines'])} |"
+              )
+
+          # ========================================================
+          # ANDROID / GRADLE
+          # ========================================================
+
+          lines.append(section("Android / Gradle Changes"))
+
+          if data["android_gradle_changes"]:
+              lines.append("| Status | File | Δ lines | Δ bytes |")
+              lines.append("|---|---|---:|---:|")
+
+              for item in data["android_gradle_changes"]:
+                  lines.append(
+                      f"| {item['status']} | `{item['path']}` | "
+                      f"{n(item['delta']['lines'])} | "
+                      f"{n(item['delta']['bytes'])} |"
+                  )
+          else:
+              lines.append(
+                  "No Android/Gradle-specific changed files were detected."
+              )
+
+          # ========================================================
+          # UPSTREAM-ONLY
+          # ========================================================
+
+          lines.append(section("Upstream-Only Files"))
+
+          if data["files"]["upstream_only"]:
+              for path in data["files"]["upstream_only"]:
+                  lines.append(f"- `{path}`")
+          else:
+              lines.append("None.")
+
+          # ========================================================
+          # REVIVAL-ONLY
+          # ========================================================
+
+          lines.append(section("Revival-Only Files"))
+
+          if data["files"]["revival_only"]:
+              for path in data["files"]["revival_only"]:
+                  lines.append(f"- `{path}`")
+          else:
+              lines.append("None.")
+
+          # ========================================================
+          # COMMIT HISTORY
+          # ========================================================
+
+          lines.append(section("Recent Upstream Commits"))
+
+          for commit in upstream["commits"]:
+              lines.append(
+                  f"- `{commit['short_sha']}` — "
+                  f"{commit['subject']} "
+                  f"({commit['date']})"
+              )
+
+          lines.append(section("Recent Revival Commits"))
+
+          for commit in revival["commits"]:
+              lines.append(
+                  f"- `{commit['short_sha']}` — "
+                  f"{commit['subject']} "
+                  f"({commit['date']})"
+              )
+
+          # ========================================================
+          # ARTIFACTS
+          # ========================================================
+
+          lines.append(section("Generated Files"))
+
+          lines.append(
+              "- `comparison-report.md` — this human-readable report"
+          )
+          lines.append(
+              "- `comparison.json` — complete machine-readable data"
+          )
+          lines.append(
+              "- `full-diff.patch` — complete Git diff"
+          )
+          lines.append(
+              "- `file-status.txt` — Git change status"
+          )
+          lines.append(
+              "- `numstat.txt` — line-level statistics"
+          )
+          lines.append(
+              "- `stat.txt` — Git diff statistics"
+          )
+          lines.append(
+              "- file inventory lists"
+          )
+
+          Path(
+              "comparison/comparison-report.md"
+          ).write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8"
+          )
+          PY
+
+      # ============================================================
+      # GEMINI ANALYSIS
+      # ============================================================
+
+      - name: 🤖 Generate AI comparison analysis
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          set -u
+
+          cat > comparison/ai-analysis.md <<'EOF'
+          # 🤖 AI Analysis
+
+          Gemini analysis was not available for this comparison.
+
+          The complete factual comparison is available in
+          `comparison-report.md` and `comparison.json`.
+          EOF
+
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "ℹ️ GEMINI_API_KEY is not configured."
+            echo "ℹ️ Using factual comparison report without AI analysis."
+            exit 0
+          fi
+
+          python3 <<'PY'
+          import json
+
+          with open(
+              "comparison/comparison.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              data = json.load(f)
+
+          prompt = f"""
+          Analyze this software repository comparison.
+
+          IMPORTANT:
+          - Be factual.
+          - Do not invent features.
+          - Do not claim one project is better.
+          - Do not rank the projects.
+          - Do not make unsupported quality claims.
+          - Clearly distinguish observed differences from interpretation.
+          - Focus on concrete technical differences.
+
+          Upstream:
+          {json.dumps(data["upstream"], indent=2)}
+
+          Revival:
+          {json.dumps(data["revival"], indent=2)}
+
+          Status counts:
+          {json.dumps(data["status_counts"], indent=2)}
+
+          File sets:
+          Common: {len(data["files"]["common"])}
+          Upstream-only: {len(data["files"]["upstream_only"])}
+          Revival-only: {len(data["files"]["revival_only"])}
+
+          Android/Gradle changes:
+          {json.dumps(data["android_gradle_changes"], indent=2)}
+
+          Biggest changes:
+          {json.dumps(data["biggest_changes"][:20], indent=2)}
+
+          Write a concise technical analysis using:
+
+          # 🤖 AI Analysis
+
+          ## Summary
+
+          ## Major Differences
+
+          ## Android / Gradle
+
+          ## Revival-Specific Changes
+
+          ## Upstream-Specific Changes
+
+          ## Areas Worth Reviewing
+
+          Do not invent anything not supported by the supplied data.
+          """
+
+          payload = {
+              "contents": [
+                  {
+                      "parts": [
+                          {
+                              "text": prompt
+                          }
+                      ]
+                  }
+              ],
+              "generationConfig": {
+                  "thinkingConfig": {
+                      "thinkingLevel": "low"
+                  },
+                  "maxOutputTokens": 3000
+              }
+          }
+
+          with open(
+              "comparison/gemini-request.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
+              json.dump(payload, f)
+          PY
+
+          HTTP_STATUS="$(
+            curl \
+              --silent \
+              --show-error \
+              --location \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --header "x-goog-api-key: ${GEMINI_API_KEY}" \
+              --output comparison/gemini-response.json \
+              --write-out "%{http_code}" \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent" \
+              --data-binary @comparison/gemini-request.json \
+              || true
+          )"
+
+          echo "Gemini HTTP status: ${HTTP_STATUS}"
+
+          if [[ "${HTTP_STATUS}" != "200" ]]; then
+            echo "⚠️ Gemini request failed."
+            echo "ℹ️ Keeping factual report."
+            exit 0
+          fi
+
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          try:
+              with open(
+                  "comparison/gemini-response.json",
+                  "r",
+                  encoding="utf-8"
+              ) as f:
+                  data = json.load(f)
+
+              candidates = data.get("candidates", [])
+
+              if not candidates:
+                  raise ValueError("No candidates returned")
+
+              parts = candidates[0].get(
+                  "content",
+                  {}
+              ).get(
+                  "parts",
+                  []
+              )
+
+              text = "".join(
+                  part.get("text", "")
+                  for part in parts
+                  if isinstance(part, dict)
+              ).strip()
+
+              if not text:
+                  raise ValueError("Empty Gemini response")
+
+              Path(
+                  "comparison/ai-analysis.md"
+              ).write_text(
+                  text + "\n",
+                  encoding="utf-8"
+              )
+
+              print("✅ AI analysis generated.")
+
+          except Exception as error:
+              print(f"⚠️ AI parsing failed: {error}")
+          PY
+
+      # ============================================================
+      # COMBINE REPORT
+      # ============================================================
+
+      - name: 📚 Build final comparison package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            cat comparison/comparison-report.md
+
+            echo ""
+            echo "---"
+            echo ""
+
+            cat comparison/ai-analysis.md
+          } > comparison/FINAL-REPORT.md
+
+          rm -f comparison/gemini-request.json
+          rm -f comparison/gemini-response.json
+
+          echo "=============================================="
+          echo " FINAL COMPARISON"
+          echo "=============================================="
+          echo ""
+          cat comparison/FINAL-REPORT.md
+
+      # ============================================================
+      # UPLOAD EVERYTHING AS ONE ARTIFACT
+      # ============================================================
+
+      - name: 📦 Upload comparison report
+        uses: actions/upload-artifact@v7
+        with:
+          name: APKUpdater-Revival-Upstream-Comparison-${{ env.REVIVAL_SHORT }}
+          path: |
+            comparison/FINAL-REPORT.md
+            comparison/comparison-report.md
+            comparison/comparison.json
+            comparison/full-diff.patch
+            comparison/file-status.txt
+            comparison/diff-summary.txt
+            comparison/numstat.txt
+            comparison/stat.txt
+            comparison/common-files.txt
+            comparison/upstream-only-files.txt
+            comparison/revival-only-files.txt
+            comparison/upstream-files.txt
+            comparison/revival-files.txt
+          if-no-files-found: error
+          archive: true
+
+      # ============================================================
+      # GITHUB STEP SUMMARY
+      # ============================================================
+
+      - name: 📊 Write workflow summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# 🔬 APKUpdater Revival Comparison"
+            echo ""
+            echo "## Repositories"
+            echo ""
+            echo "| Repository | Branch | SHA |"
+            echo "|---|---|---|"
+            echo "| Upstream | \`${UPSTREAM_BRANCH}\` | \`${UPSTREAM_SHA}\` |"
+            echo "| Revival | \`${REVIVAL_BRANCH}\` | \`${REVIVAL_SHA}\` |"
+            echo ""
+            echo "## Files"
+            echo ""
+            echo "| Metric | Count |"
+            echo "|---|---:|"
+            echo "| Common | $(wc -l < comparison/common-files.txt) |"
+            echo "| Upstream-only | $(wc -l < comparison/upstream-only-files.txt) |"
+            echo "| Revival-only | $(wc -l < comparison/revival-only-files.txt) |"
+            echo ""
+            echo "## Changes"
+            echo ""
+            echo "| Status | Count |"
+            echo "|---|---:|"
+            echo "| Added | ${CHANGE_ADDED:-0} |"
+            echo "| Modified | ${CHANGE_MODIFIED:-0} |"
+            echo "| Deleted | ${CHANGE_DELETED:-0} |"
+            echo "| Renamed | ${CHANGE_RENAMED:-0} |"
+            echo "| Copied | ${CHANGE_COPIED:-0} |"
+            echo ""
+            echo "## Artifact"
+            echo ""
+            echo "📦 Full comparison package uploaded as a workflow artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
