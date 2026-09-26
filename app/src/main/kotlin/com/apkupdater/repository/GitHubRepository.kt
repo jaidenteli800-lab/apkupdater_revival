@@ -153,9 +153,14 @@ class GitHubRepository(
         Pair(version, versionCode)
     }.getOrDefault(Pair(name, 0L))
 
-    private fun filterPreRelease(release: GitHubRelease) = when {
-        prefs.ignorePreRelease.get() && release.prerelease -> false
-        else -> true
+    private fun filterPreRelease(release: GitHubRelease): Boolean {
+        val name = (release.name + " " + release.tag_name).lowercase()
+        return when {
+            prefs.ignorePreRelease.get() && (release.prerelease || name.contains("alpha") || name.contains("beta") || name.contains("rc") || name.contains("dev") || name.contains("preview")) -> false
+            prefs.ignoreAlpha.get() && name.contains("alpha") -> false
+            prefs.ignoreBeta.get() && name.contains("beta") -> false
+            else -> true
+        }
     }
 
     private fun findApkAsset(assets: List<GitHubReleaseAsset>) = assets

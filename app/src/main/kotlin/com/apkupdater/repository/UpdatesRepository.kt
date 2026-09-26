@@ -58,6 +58,7 @@ class UpdatesRepository(
                                 val app = apps.find { it.packageName == packageName }
                                 bestUpdate.copy(isPersistent = app?.isPersistent ?: false)
                             }
+                            .sortedBy { it.name.ifEmpty { it.packageName }.lowercase() }
                             .toList()
                     }
                     emitAll(combinedFlow)

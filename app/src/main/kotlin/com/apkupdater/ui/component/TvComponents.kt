@@ -177,10 +177,11 @@ fun TvSearchItem(app: AppUpdate, onInstall: (String) -> Unit = {}) = Card {
 @Composable
 fun WhatsNew(whatsNew: String, source: Source) {
     if (whatsNew.isNotEmpty()) {
+        val trimmed = whatsNew.trim().take(3000)
         val text = if (source == ApkMirrorSource || source == ApkPureSource) {
-            HtmlCompat.fromHtml(whatsNew.trim(), HtmlCompat.FROM_HTML_MODE_COMPACT).toAnnotatedString()
+            HtmlCompat.fromHtml(trimmed, HtmlCompat.FROM_HTML_MODE_COMPACT).toAnnotatedString()
         } else {
-            AnnotatedString(whatsNew)
+            AnnotatedString(trimmed)
         }
         ExpandingAnnotatedText(text, Modifier.padding(8.dp).fillMaxWidth())
     }

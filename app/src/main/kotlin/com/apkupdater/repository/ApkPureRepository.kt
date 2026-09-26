@@ -29,6 +29,7 @@ class ApkPureRepository(
         val r = service.getAppUpdate(header, GetAppUpdate(info))
         val updates = r.app_update_response.asSequence()
             .filter { filterSignature(it.sign, apps.getSignature(it.package_name)) }
+            .filter { filterPreRelease(it) }
             .filter { filterAlpha(it) }
             .filter { filterBeta(it) }
             .map { it.toAppUpdate(apps.getApp(it.package_name)) }
@@ -58,6 +59,16 @@ class ApkPureRepository(
     }.catch {
         Log.e("ApkPureRepository", it.message, it)
         emit(Result.failure(it))
+    }
+
+    private fun filterPreRelease(update: AppUpdateResponse): Boolean {
+        val name = update.version_name.lowercase()
+        return when {
+            prefs.ignorePreRelease.get() && (name.contains("alpha") || name.contains("beta") || name.contains("rc") || name.contains("dev") || name.contains("preview")) -> false
+            prefs.ignoreAlpha.get() && name.contains("alpha") -> false
+            prefs.ignoreBeta.get() && name.contains("beta") -> false
+            else -> true
+        }
     }
 
     private fun filterAlpha(update: AppUpdateResponse) = when {
